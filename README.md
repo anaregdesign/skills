@@ -10,23 +10,27 @@ Skills are organized in the following hierarchy:
 skills/
 └── <tag>/
     └── <skill-name>/
-        └── README.md
+        └── (agentskills.io-compliant skill files)
 ```
 
 ### Tags
 
 Tags represent use-case categories that group related skills together.
-Examples include `Developer`, `OfficeWorker`, etc.
+Examples: `<tag-a>`, `<tag-b>`, etc.
+
+### Skill Specification
+
+Each `<skill-name>` directory must contain a skill that conforms to the
+[agentskills.io](https://agentskills.io/) specification.
 
 ### Adding a Skill
 
 1. Choose (or create) an appropriate tag directory under `skills/`.
 2. Create a new directory for your skill: `skills/<tag>/<skill-name>/`.
-3. Add a `README.md` inside the skill directory describing the skill in English.
+3. Place the [agentskills.io](https://agentskills.io/)-compliant skill files inside the skill directory.
 
-## Available Skills
+## Available Tags
 
-| Tag | Skill | Description |
-|-----|-------|-------------|
-| Developer | [hello-world](skills/Developer/hello-world/) | A minimal example skill that prints "Hello, World!" |
-| OfficeWorker | [summarize](skills/OfficeWorker/summarize/) | Summarizes a given text into a short paragraph |
+| Tag |
+|-----|
+| japanese-business |

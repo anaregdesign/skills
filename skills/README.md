@@ -6,12 +6,10 @@ This directory contains all registered skills, organized by tag.
 
 ```
 skills/
-└── <tag>/          # Use-case category (e.g., Developer, OfficeWorker)
+└── <tag>/          # Use-case category (e.g., <tag-a>, <tag-b>)
     └── <skill-name>/
-        └── README.md
+        └── (agentskills.io-compliant skill files)
 ```
 
-Each skill lives in its own directory and must include a `README.md` that describes:
-- What the skill does
-- Expected inputs and outputs
-- Example usage
+Each `<skill-name>` directory must contain a skill that conforms to the
+[agentskills.io](https://agentskills.io/) specification.
