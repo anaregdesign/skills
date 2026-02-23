@@ -1,6 +1,7 @@
 # skills
 
 Skill Registry for [local-playground](https://github.com/anaregdesign/local-playground).
+This repository contains [agentskills.io](https://agentskills.io/)-compliant skills.
 
 ## Directory Structure
 
@@ -33,4 +34,5 @@ Each `<skill-name>` directory must contain a skill that conforms to the
 
 | Tag |
 |-----|
+| example |
 | japanese-business |
