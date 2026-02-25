@@ -92,7 +92,6 @@ resolve_version_from_uv() {
   PROJECT_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
   VENV_DIR="${PROJECT_DIR}/.venv"
   ACTIVATE_SCRIPT="${VENV_DIR}/bin/activate"
-  SRC_DIR="${PROJECT_DIR}/src"
 
   if [[ ! -d "${PROJECT_DIR}" ]]; then
     echo "Project directory not found: ${PROJECT_DIR}" >&2
@@ -106,11 +105,6 @@ resolve_version_from_uv() {
   fi
   if [[ ! -f "${PROJECT_DIR}/pyproject.toml" ]]; then
     echo "Project metadata not found: ${PROJECT_DIR}/pyproject.toml" >&2
-    echo "Run setup-macos.sh or setup-linux.sh first." >&2
-    return 1
-  fi
-  if [[ ! -d "${SRC_DIR}" ]]; then
-    echo "Source directory not found: ${SRC_DIR}" >&2
     echo "Run setup-macos.sh or setup-linux.sh first." >&2
     return 1
   fi

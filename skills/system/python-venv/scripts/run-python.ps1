@@ -1,6 +1,9 @@
 param(
     [string]$PythonVersion = "",
-    [switch]$DryRun
+    [string]$ScriptPath = "",
+    [switch]$DryRun,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$ScriptArgs
 )
 
 $ErrorActionPreference = "Stop"
@@ -99,11 +102,9 @@ function Write-DotEnv {
         "PYTHON_VENV_ACTIVE_PROJECT_DIR=$ProjectDir"
         "PYTHON_VENV_ACTIVE_VENV_DIR=$VenvDir"
         "PYTHON_VENV_ACTIVE_PYTHON_BIN=$(Join-Path $VenvDir 'Scripts\python.exe')"
-        "PYTHON_VENV_LAST_ACTION=switch"
+        "PYTHON_VENV_LAST_ACTION=run-python"
     ) | Set-Content -Path $EnvFile -Encoding UTF8
 }
-
-$isDotSourced = $MyInvocation.InvocationName -eq "."
 
 if (-not (Test-Path $AssetsBaseDir)) {
     New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
@@ -133,15 +134,18 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv is not available. Run setup-windows.ps1 first."
 }
 
+if ([string]::IsNullOrWhiteSpace($ScriptPath)) {
+    throw "-ScriptPath is required."
+}
+
 $normalizedRequest = Resolve-NormalizedRequest -Request $PythonVersion
 $versionTag = Resolve-VersionFromUv -NormalizedRequest $normalizedRequest
-$versionDir = Join-Path $AssetsBaseDir $versionTag
-$venvDir = Join-Path $versionDir ".venv"
-$activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
-$pyprojectPath = Join-Path $versionDir "pyproject.toml"
+$projectDir = Join-Path $AssetsBaseDir $versionTag
+$venvDir = Join-Path $projectDir ".venv"
+$pyprojectPath = Join-Path $projectDir "pyproject.toml"
 
-if (-not (Test-Path $versionDir)) {
-    throw "Project directory not found: $versionDir. Run setup-windows.ps1 first."
+if (-not (Test-Path $projectDir)) {
+    throw "Project directory not found: $projectDir. Run setup-windows.ps1 first."
 }
 if (-not (Test-Path $venvDir)) {
     throw "Expected venv does not exist: $venvDir. Run setup-windows.ps1 first."
@@ -149,37 +153,36 @@ if (-not (Test-Path $venvDir)) {
 if (-not (Test-Path $pyprojectPath)) {
     throw "Project metadata not found: $pyprojectPath. Run setup-windows.ps1 first."
 }
-if (-not (Test-Path $activateScript)) {
-    throw "Activation script not found: $activateScript. Run setup-windows.ps1 first."
+
+$scriptPathResolved = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $ScriptPath))
+if ($ScriptPath -match '^[A-Za-z]:\\' -or $ScriptPath.StartsWith('\\')) {
+    $scriptPathResolved = [System.IO.Path]::GetFullPath($ScriptPath)
+}
+
+if (-not $scriptPathResolved.EndsWith(".py")) {
+    throw "-ScriptPath must point to a .py file: $scriptPathResolved"
+}
+
+if (-not $DryRun -and -not (Test-Path $scriptPathResolved)) {
+    throw "Script file not found: $scriptPathResolved"
 }
 
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $versionTag"
-Write-Host "Venv path: $venvDir"
+Write-Host "Project directory: $projectDir"
+Write-Host "Script path: $scriptPathResolved"
 
 if ($DryRun) {
-    Write-Host "+ deactivate (if active)"
-    Write-Host "+ . '$activateScript'"
+    if ($ScriptArgs.Count -gt 0) {
+        Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved' $($ScriptArgs -join ' ')"
+    }
+    else {
+        Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved'"
+    }
     Write-Host "+ write $EnvFile"
     exit 0
 }
 
-if (-not $isDotSourced) {
-    Write-DotEnv -VersionTag $versionTag -ProjectDir $versionDir -VenvDir $venvDir
-    Write-Host "Saved active version to $EnvFile."
-    Write-Host "Note: non dot-source execution cannot modify current shell."
-    Write-Host "If you need immediate shell activation, run:"
-    Write-Host ". .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
-    exit 0
-}
-
-if (Get-Command deactivate -ErrorAction SilentlyContinue) {
-    deactivate
-}
-elseif ($env:VIRTUAL_ENV) {
-    Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
-}
-
-. $activateScript
-Write-DotEnv -VersionTag $versionTag -ProjectDir $versionDir -VenvDir $venvDir
-Write-Host "Activated VIRTUAL_ENV: $env:VIRTUAL_ENV"
+uv --project $projectDir run python $scriptPathResolved @ScriptArgs
+Write-DotEnv -VersionTag $versionTag -ProjectDir $projectDir -VenvDir $venvDir
+Write-Host "Done."

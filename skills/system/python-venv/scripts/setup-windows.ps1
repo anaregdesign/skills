@@ -226,7 +226,7 @@ else {
 Invoke-Step -Display "uv --project '$projectDir' sync --python '$($pythonSpec.Path)'" -Action {
     uv --project $projectDir sync --python $pythonSpec.Path
 }
-Write-DotEnv -VersionTag $pythonVersionTag -ProjectDir $projectDir -VenvDir $venvDir -PythonBin $pythonSpec.Path
+Write-DotEnv -VersionTag $pythonVersionTag -ProjectDir $projectDir -VenvDir $venvDir -PythonBin (Join-Path $venvDir "Scripts\python.exe")
 
 Write-Host "Done."
 Write-Host "Activate with: $venvDir\Scripts\Activate.ps1"

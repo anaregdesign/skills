@@ -4,11 +4,11 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  run-generated.sh [--dry-run] [--python <version>] --name <file.py> --code-base64 <base64>
+  run-python.sh [--dry-run] [--python <version>] --script <absolute-or-relative-path.py> [-- <script-args...>]
 
 Examples:
-  run-generated.sh --python 3.12 --name hello.py --code-base64 cHJpbnQoIkhlbGxvIikK
-  run-generated.sh --name hello.py --code-base64 cHJpbnQoIkhlbGxvIikK
+  run-python.sh --python 3.12 --script /absolute/path/to/task.py
+  run-python.sh --script ./task.py -- --input data.json --verbose
 EOF
 }
 
@@ -74,7 +74,7 @@ PYTHON_VENV_ACTIVE_VERSION=${PYTHON_VERSION_TAG}
 PYTHON_VENV_ACTIVE_PROJECT_DIR=${PROJECT_DIR}
 PYTHON_VENV_ACTIVE_VENV_DIR=${VENV_DIR}
 PYTHON_VENV_ACTIVE_PYTHON_BIN=${VENV_DIR}/bin/python
-PYTHON_VENV_LAST_ACTION=run-generated
+PYTHON_VENV_LAST_ACTION=run-python
 EOF
 }
 
@@ -106,7 +106,6 @@ resolve_version_from_uv() {
   PYTHON_VERSION_TAG="v${resolved_version}"
   PROJECT_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
   VENV_DIR="${PROJECT_DIR}/.venv"
-  SRC_DIR="${PROJECT_DIR}/src"
 
   if [[ ! -d "${PROJECT_DIR}" ]]; then
     echo "Project directory not found: ${PROJECT_DIR}" >&2
@@ -123,40 +122,22 @@ resolve_version_from_uv() {
     echo "Run setup-macos.sh or setup-linux.sh first." >&2
     return 1
   fi
-  run_cmd mkdir -p "${SRC_DIR}"
 }
 
-validate_script_name() {
-  local name="$1"
-  if [[ -z "${name}" ]]; then
-    echo "--name is required." >&2
-    return 1
+resolve_script_path() {
+  local path="$1"
+  if [[ "${path}" == /* ]]; then
+    RESOLVED_SCRIPT_PATH="${path}"
+    return 0
   fi
-  if [[ "${name}" == */* || "${name}" == *\\* || "${name}" == .* || "${name}" == *".."* ]]; then
-    echo "Invalid --name: ${name}" >&2
-    echo "Use a safe filename under src/ (example: hello.py)." >&2
-    return 1
-  fi
-  if [[ "${name}" != *.py ]]; then
-    echo "--name must end with .py: ${name}" >&2
-    return 1
-  fi
-}
-
-decode_base64_to_file() {
-  local encoded="$1"
-  local output_path="$2"
-  if base64 --help 2>&1 | grep -q -- '--decode'; then
-    printf '%s' "${encoded}" | base64 --decode > "${output_path}"
-  else
-    printf '%s' "${encoded}" | base64 -D > "${output_path}"
-  fi
+  RESOLVED_SCRIPT_PATH="$(cd -P . && pwd)/${path}"
 }
 
 DRY_RUN=0
 PYTHON_REQUEST=""
-SCRIPT_NAME=""
-CODE_BASE64=""
+SCRIPT_PATH=""
+SCRIPT_ARGS=()
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)
@@ -172,23 +153,19 @@ while [[ $# -gt 0 ]]; do
       PYTHON_REQUEST="$2"
       shift 2
       ;;
-    --name)
+    --script)
       if [[ $# -lt 2 ]]; then
-        echo "Missing value for --name" >&2
+        echo "Missing value for --script" >&2
         usage
         exit 1
       fi
-      SCRIPT_NAME="$2"
+      SCRIPT_PATH="$2"
       shift 2
       ;;
-    --code-base64)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --code-base64" >&2
-        usage
-        exit 1
-      fi
-      CODE_BASE64="$2"
-      shift 2
+    --)
+      shift
+      SCRIPT_ARGS=("$@")
+      break
       ;;
     -h|--help)
       usage
@@ -222,8 +199,8 @@ if [[ -z "${PYTHON_REQUEST}" ]]; then
   exit 1
 fi
 
-if [[ -z "${SCRIPT_NAME}" || -z "${CODE_BASE64}" ]]; then
-  echo "--name and --code-base64 are required." >&2
+if [[ -z "${SCRIPT_PATH}" ]]; then
+  echo "--script <path.py> is required." >&2
   usage
   exit 1
 fi
@@ -233,22 +210,30 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-validate_script_name "${SCRIPT_NAME}" || exit 1
-CODE_BASE64="$(printf '%s' "${CODE_BASE64}" | tr -d '\r\n\t ')"
 validate_version_request "${PYTHON_REQUEST}" || exit 1
 resolve_version_from_uv || exit 1
+resolve_script_path "${SCRIPT_PATH}"
 
-SCRIPT_PATH="${SRC_DIR}/${SCRIPT_NAME}"
+if [[ "${RESOLVED_SCRIPT_PATH}" != *.py ]]; then
+  echo "--script must point to a .py file: ${RESOLVED_SCRIPT_PATH}" >&2
+  exit 1
+fi
+
+if [[ "${DRY_RUN}" -eq 0 ]] && [[ ! -f "${RESOLVED_SCRIPT_PATH}" ]]; then
+  echo "Script file not found: ${RESOLVED_SCRIPT_PATH}" >&2
+  exit 1
+fi
+
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Project directory: ${PROJECT_DIR}"
-echo "Script path: ${SCRIPT_PATH}"
+echo "Script path: ${RESOLVED_SCRIPT_PATH}"
 
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo "+ write script to ${SCRIPT_PATH} from base64"
+if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
+  run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}" "${SCRIPT_ARGS[@]}"
 else
-  decode_base64_to_file "${CODE_BASE64}" "${SCRIPT_PATH}"
+  run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}"
 fi
-run_cmd uv --project "${PROJECT_DIR}" run python "${SCRIPT_PATH}"
 persist_env_file
 
+echo "Done."
