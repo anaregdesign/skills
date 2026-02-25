@@ -75,11 +75,34 @@ source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
 ```
 
 ```powershell
-# Windows PowerShell (recommended: dot-source)
+# Windows PowerShell (must run with dot-source)
 . .\scripts\switch-python.ps1 `
   -PythonVersion <version> `
   [-WorkspaceDir <workspace-dir>]
 ```
+
+## Dependency Map
+
+1. `setup-*`
+
+- 役割: `uv` の確認/導入、workspace 準備、指定 Python の env 作成/同期
+- 入力: `workspace-dir` (任意), Python version (任意)
+- 出力: `<skill-dir>/venv/vX.Y.Z/.venv`
+- 依存: `uv`, `pyproject.toml`（なければ `uv init` で作成）
+
+1. `switch-python.*`
+
+- 役割: 指定 version の env がなければ作成し、`deactivate -> activate`
+- 入力: Python version（必須）, `workspace-dir`（任意）
+- 出力: current shell の active env が指定 version に切替済み
+- 依存: `setup-*` と同じ基盤。Bash は `source`、PowerShell は dot-source 必須
+
+1. `add-deps.*`
+
+- 役割: 依存追加のみ (`uv add -> uv lock -> uv sync`)
+- 入力: `workspace-dir`（必須）, package list（必須）
+- 出力: 指定 env の依存関係更新
+- 依存: 既存 env（`setup-*` / `switch-python.*` で作成済み）
 
 Dry run:
 
@@ -146,6 +169,7 @@ powershell -ExecutionPolicy ByPass -c `
 - `<skill-dir>/venv/vX.Y.Z/.venv`
 
 要求バージョンが既存 env にない場合は新規作成する。
+同じ version が既にある場合は再作成せずに再利用する。
 
 ```bash
 uv venv --python <resolved-python> \
@@ -182,6 +206,8 @@ powershell -ExecutionPolicy ByPass `
 - すべての command は `pyproject.toml` がある workspace で実行する。
 - Python env の path は必ず `<skill-dir>/venv/vX.Y.Z/.venv` に統一する。
 - 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
+- 同じ version の env が存在する場合は再作成しない。
 - version 切替時は current env を deactivate してから activate する。
+- PowerShell の version 切替は dot-source で実行する。
 - dependency 追加は `pip install` ではなく `uv add` を優先する。
 - `add-deps.*` は active なこの skill 配下の env を優先して使う。

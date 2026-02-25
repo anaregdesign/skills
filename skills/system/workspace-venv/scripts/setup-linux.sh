@@ -218,7 +218,15 @@ else
 fi
 
 run_cmd mkdir -p "$(dirname "${VENV_DIR}")"
-run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "+ [ -d ${VENV_DIR} ] || uv venv --python ${PYTHON_BIN} ${VENV_DIR}"
+else
+  if [[ -d "${VENV_DIR}" ]]; then
+    echo "Venv already exists. Skip create: ${VENV_DIR}"
+  else
+    run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
+  fi
+fi
 run_cmd env UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv sync
 
 echo "Done."

@@ -187,8 +187,18 @@ Invoke-Step -Display "New-Item -ItemType Directory -Path '$(Split-Path -Parent $
     New-Item -ItemType Directory -Path (Split-Path -Parent $venvDir) -Force | Out-Null
 }
 
-Invoke-Step -Display "uv venv --python '$($pythonSpec.Path)' '$venvDir'" -Action {
-    uv venv --python $pythonSpec.Path $venvDir
+if ($DryRun) {
+    Write-Host "+ if (-not (Test-Path '$venvDir')) { uv venv --python '$($pythonSpec.Path)' '$venvDir' }"
+}
+else {
+    if (Test-Path $venvDir) {
+        Write-Host "Venv already exists. Skip create: $venvDir"
+    }
+    else {
+        Invoke-Step -Display "uv venv --python '$($pythonSpec.Path)' '$venvDir'" -Action {
+            uv venv --python $pythonSpec.Path $venvDir
+        }
+    }
 }
 
 Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv sync" -Action {

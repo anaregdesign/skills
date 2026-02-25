@@ -163,8 +163,9 @@ function Resolve-PythonSpec {
 
 $isDotSourced = $MyInvocation.InvocationName -eq "."
 if (-not $isDotSourced -and -not $DryRun) {
-    Write-Warning "Use dot-sourcing to keep activation in current shell."
-    Write-Warning "Example: . .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
+    Write-Error "Run this script with dot-sourcing to apply deactivate/activate in current shell."
+    Write-Host "Example: . .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
+    exit 1
 }
 
 $WorkspaceDir = Resolve-WorkspaceDir -ExplicitDir $WorkspaceDir
