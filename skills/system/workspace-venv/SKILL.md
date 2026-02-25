@@ -6,23 +6,22 @@ description: |
   - User asks for a Python execution environment.
   - User asks for virtual environment setup (venv/.venv).
   - User asks for Python interpreter setup.
-  - User asks to make package installation ready.
-  - User reports missing dependency/runtime errors
-    (for example ModuleNotFoundError).
-  Execute cross-platform workspace bootstrap with uv for
-  macOS, Linux, and Windows: check uv availability, install uv only
-  if missing, create a virtual environment with the latest available
-  Python 3, activate it, and manage dependencies with
-  separate dependency-only scripts using uv add/lock/sync.
+  - User asks for package installation readiness.
+  - User requests a specific Python version (for example 3.12.10).
+  - User reports dependency/runtime errors (for example ModuleNotFoundError).
+  Execute cross-platform workspace bootstrap with uv for macOS,
+  Linux, and Windows. Always place environments at
+  `<skill-dir>/venv/vX.Y.Z/.venv`.
+  If a different Python version is requested, create that version's
+  environment, then deactivate the current environment and activate the
+  requested one.
 ---
 
 # Workspace Venv
 
-`uv` で workspace 単位の
-Python 仮想環境を作成し、依存関係を minimal command で管理する。
+`uv` で workspace 単位の Python 実行環境を管理する。
 
-Python の実行環境が必要な依頼では、
-この skill を最初に実行する。
+Python 実行環境が必要な依頼では、この skill を最初に使う。
 
 ## Trigger Conditions
 
@@ -30,6 +29,7 @@ Python の実行環境が必要な依頼では、
 - `venv` / `.venv` の作成を求められたとき
 - Python interpreter 設定を求められたとき
 - package 導入準備（依存解決）を求められたとき
+- Python の特定バージョンを要求されたとき
 - `ModuleNotFoundError` など依存不足 error が出ているとき
 
 ## Scripts
@@ -38,16 +38,17 @@ Initial setup script:
 
 ```bash
 # macOS
-bash scripts/setup-macos.sh [workspace-dir]
+bash scripts/setup-macos.sh [--python <version>] [workspace-dir]
 
 # Linux
-bash scripts/setup-linux.sh [workspace-dir]
+bash scripts/setup-linux.sh [--python <version>] [workspace-dir]
 ```
 
 ```powershell
 # Windows PowerShell
 powershell -ExecutionPolicy ByPass `
   -File scripts/setup-windows.ps1 `
+  [-PythonVersion <version>] `
   [-WorkspaceDir <workspace-dir>]
 ```
 
@@ -66,39 +67,58 @@ powershell -ExecutionPolicy ByPass `
   -Packages <pkg1>,<pkg2>
 ```
 
+Version switch script:
+
+```bash
+# macOS / Linux (must run with source)
+source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
+```
+
+```powershell
+# Windows PowerShell (recommended: dot-source)
+. .\scripts\switch-python.ps1 `
+  -PythonVersion <version> `
+  [-WorkspaceDir <workspace-dir>]
+```
+
 Dry run:
 
 ```bash
-bash scripts/setup-macos.sh --dry-run [workspace-dir]
-bash scripts/setup-linux.sh --dry-run [workspace-dir]
+bash scripts/setup-macos.sh --dry-run --python 3.12 [workspace-dir]
+bash scripts/setup-linux.sh --dry-run --python 3.12 [workspace-dir]
 bash scripts/add-deps.sh --dry-run <workspace-dir> requests rich
+bash scripts/switch-python.sh --dry-run --python 3.12 --workspace <workspace-dir>
 ```
 
 ```powershell
 powershell -ExecutionPolicy ByPass `
   -File scripts/setup-windows.ps1 `
-  [-WorkspaceDir <workspace-dir>] `
-  -DryRun
+  -DryRun `
+  [-PythonVersion 3.12] `
+  [-WorkspaceDir <workspace-dir>]
 powershell -ExecutionPolicy ByPass `
   -File scripts/add-deps.ps1 `
   -WorkspaceDir <workspace-dir> `
   -Packages requests,rich `
   -DryRun
+powershell -ExecutionPolicy ByPass `
+  -File scripts/switch-python.ps1 `
+  -PythonVersion 3.12 `
+  [-WorkspaceDir <workspace-dir>] `
+  -DryRun
 ```
 
 ## Workflow
 
-1. setup 時の workspace を決める
+1. setup 対象の workspace を決める
 
-`setup-*` script は `workspace-dir` 未指定時に
-次の順で自動選択する。
+`setup-*` は `workspace-dir` 未指定時に次の順で自動選択する。
 
 - 現在 directory（`pyproject.toml` がある場合）
 - Git root（Git 管理下の場合）
 - 現在 directory
 
 自動判定できない場合のみ、user 入力で path を受け取る。
-実行時に `Workspace directory: <path>` を表示する。
 
 1. `uv` が使えるか確認する
 
@@ -119,34 +139,32 @@ powershell -ExecutionPolicy ByPass -c `
   "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-install 後は shell を再起動して
-`uv --version` を実行する。
+1. 要求された Python バージョンで env を作成する
 
-1. `uv` で最新 Python 3 系の仮想環境を作成する
+作成先は必ず次の固定パスにする。
+
+- `<skill-dir>/venv/vX.Y.Z/.venv`
+
+要求バージョンが既存 env にない場合は新規作成する。
 
 ```bash
-uv venv --python 3 .venv
+uv venv --python <resolved-python> \
+  <skill-dir>/venv/vX.Y.Z/.venv
 ```
 
-1. 仮想環境を有効化する
+1. 現在 env を deactivate して要求バージョンを activate する
 
 ```bash
-# macOS / Linux
-source .venv/bin/activate
+source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
 ```
 
 ```powershell
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
+. .\scripts\switch-python.ps1 `
+  -PythonVersion <version> `
+  [-WorkspaceDir <workspace-dir>]
 ```
 
-```cmd
-:: Windows cmd
-.venv\Scripts\activate.bat
-```
-
-1. 後から不足 library が見つかったら
-   依存追加 script を使う
+1. 後から不足 library が見つかったら依存追加 script を使う
 
 ```bash
 bash scripts/add-deps.sh <workspace-dir> <pkg1> [pkg2...]
@@ -161,14 +179,9 @@ powershell -ExecutionPolicy ByPass `
 
 ## Rules
 
-- すべての command は `pyproject.toml` がある
-  workspace 直下で実行する。
-- 依存追加は `pip install` ではなく `uv add` を優先する。
-- 環境再現時は `uv sync` を実行してから
-  activate する。
-- script は最初に `uv --version` で確認し、
-  `uv` がない場合のみ install する。
-- setup 時の directory は自動選択し、
-  選択した path を必ず表示する。
-- 初期構築は `setup-*`、
-  後追い依存追加は `add-deps.*` を使い分ける。
+- すべての command は `pyproject.toml` がある workspace で実行する。
+- Python env の path は必ず `<skill-dir>/venv/vX.Y.Z/.venv` に統一する。
+- 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
+- version 切替時は current env を deactivate してから activate する。
+- dependency 追加は `pip install` ではなく `uv add` を優先する。
+- `add-deps.*` は active なこの skill 配下の env を優先して使う。

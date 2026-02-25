@@ -1,6 +1,7 @@
 param(
     [string]$WorkspaceDir,
-    [string]$PythonVersion = "3",
+    [Parameter(Mandatory = $true)]
+    [string]$PythonVersion,
     [switch]$DryRun
 )
 
@@ -78,6 +79,33 @@ function Resolve-WorkspaceDir {
     return [System.IO.Path]::GetFullPath($detectedDir)
 }
 
+function Ensure-Uv {
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        if ($DryRun) {
+            Write-Host "+ uv --version"
+        }
+        else {
+            uv --version
+        }
+        return
+    }
+
+    Write-Host "uv not found. Installing uv for Windows..."
+    Invoke-Step -Display 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"' -Action {
+        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+    }
+
+    if (-not $DryRun) {
+        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $env:Path = "$userPath;$machinePath"
+
+        if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+            throw "uv install finished but uv is still not on PATH. Restart your shell and rerun."
+        }
+    }
+}
+
 function Resolve-PythonSpec {
     param(
         [Parameter(Mandatory = $true)]
@@ -109,7 +137,7 @@ function Resolve-PythonSpec {
                 Path    = "python3"
             }
         }
-        throw "Could not resolve managed Python version."
+        throw "Could not resolve managed Python version for '$PythonRequest'."
     }
 
     if ($pythonEntries -isnot [System.Array]) {
@@ -133,37 +161,20 @@ function Resolve-PythonSpec {
     }
 }
 
+$isDotSourced = $MyInvocation.InvocationName -eq "."
+if (-not $isDotSourced -and -not $DryRun) {
+    Write-Warning "Use dot-sourcing to keep activation in current shell."
+    Write-Warning "Example: . .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
+}
+
 $WorkspaceDir = Resolve-WorkspaceDir -ExplicitDir $WorkspaceDir
 Write-Host "Workspace directory: $WorkspaceDir"
 
-if (Get-Command uv -ErrorAction SilentlyContinue) {
-    if ($DryRun) {
-        Write-Host "+ uv --version"
-    }
-    else {
-        uv --version
-    }
-}
-else {
-    Write-Host "uv not found. Installing uv for Windows..."
-    Invoke-Step -Display 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"' -Action {
-        powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-    }
-
-    if (-not $DryRun) {
-        $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-        $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
-        $env:Path = "$userPath;$machinePath"
-
-        if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-            throw "uv install finished but uv is still not on PATH. Restart your shell and rerun."
-        }
-    }
-}
-
+Ensure-Uv
 $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
 $venvDir = Join-Path (Join-Path (Join-Path $SkillDir "venv") $pythonVersionTag) ".venv"
+$activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $pythonVersionTag"
 Write-Host "Venv path: $venvDir"
@@ -173,13 +184,13 @@ Invoke-Step -Display "New-Item -ItemType Directory -Path '$WorkspaceDir' -Force"
 }
 
 if ($DryRun) {
-    Write-Host "+ Set-Location '$WorkspaceDir'"
-    Write-Host "+ if (-not (Test-Path pyproject.toml)) { uv init }"
+    Write-Host "+ if (-not (Test-Path '$WorkspaceDir\pyproject.toml')) { uv --directory '$WorkspaceDir' init }"
 }
 else {
-    Set-Location $WorkspaceDir
-    if (-not (Test-Path pyproject.toml)) {
-        Invoke-Step -Display "uv init" -Action { uv init }
+    if (-not (Test-Path (Join-Path $WorkspaceDir "pyproject.toml"))) {
+        Invoke-Step -Display "uv --directory '$WorkspaceDir' init" -Action {
+            uv --directory $WorkspaceDir init
+        }
     }
 }
 
@@ -187,15 +198,22 @@ Invoke-Step -Display "New-Item -ItemType Directory -Path '$(Split-Path -Parent $
     New-Item -ItemType Directory -Path (Split-Path -Parent $venvDir) -Force | Out-Null
 }
 
-Invoke-Step -Display "uv venv --python '$($pythonSpec.Path)' '$venvDir'" -Action {
-    uv venv --python $pythonSpec.Path $venvDir
+if ($DryRun) {
+    Write-Host "+ if (-not (Test-Path '$venvDir')) { uv venv --python '$($pythonSpec.Path)' '$venvDir' }"
+}
+else {
+    if (-not (Test-Path $venvDir)) {
+        Invoke-Step -Display "uv venv --python '$($pythonSpec.Path)' '$venvDir'" -Action {
+            uv venv --python $pythonSpec.Path $venvDir
+        }
+    }
 }
 
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv sync" -Action {
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$WorkspaceDir' sync" -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
     $env:UV_PROJECT_ENVIRONMENT = $venvDir
     try {
-        uv sync
+        uv --project $WorkspaceDir sync
     }
     finally {
         if ($null -ne $previousProjectEnv) {
@@ -207,5 +225,18 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv sync" -Action {
     }
 }
 
-Write-Host "Done."
-Write-Host "Activate with: $venvDir\Scripts\Activate.ps1"
+if ($DryRun) {
+    Write-Host "+ deactivate (if active)"
+    Write-Host "+ . '$activateScript'"
+    exit 0
+}
+
+if (Get-Command deactivate -ErrorAction SilentlyContinue) {
+    deactivate
+}
+elseif ($env:VIRTUAL_ENV) {
+    Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+}
+
+. $activateScript
+Write-Host "Activated VIRTUAL_ENV: $env:VIRTUAL_ENV"

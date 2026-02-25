@@ -4,10 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  setup-linux.sh [--dry-run] [workspace-dir]
+  setup-linux.sh [--dry-run] [--python <version>] [workspace-dir]
 
 Examples:
   setup-linux.sh
+  setup-linux.sh --python 3.12
+  setup-linux.sh --python 3.12.10 ~/work/my-app
   setup-linux.sh ~/work/my-app
   setup-linux.sh --dry-run
 EOF
@@ -25,6 +27,9 @@ run_cmd() {
   "$@"
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 expand_home_path() {
   local path="$1"
   case "${path}" in
@@ -38,6 +43,47 @@ expand_home_path() {
       printf '%s\n' "${path}"
       ;;
   esac
+}
+
+resolve_python_spec() {
+  local python_json=""
+  local resolved_version=""
+  local resolved_python_bin=""
+
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "+ uv python install ${PYTHON_REQUEST} --managed-python"
+  else
+    run_cmd uv python install "${PYTHON_REQUEST}" --managed-python
+  fi
+
+  if command -v uv >/dev/null 2>&1; then
+    python_json="$(
+      uv python list "${PYTHON_REQUEST}" --managed-python --only-installed --output-format json 2>/dev/null || true
+    )"
+    resolved_version="$(printf '%s\n' "${python_json}" | grep -o '"version":"[0-9.]*"' | head -n1 | cut -d'"' -f4 || true)"
+    resolved_python_bin="$(printf '%s\n' "${python_json}" | grep -o '"path":"[^"]*"' | head -n1 | cut -d'"' -f4 || true)"
+  fi
+
+  if [[ -z "${resolved_version}" ]]; then
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      resolved_version="x.x.x"
+    else
+      echo "Could not resolve managed Python version for '${PYTHON_REQUEST}'." >&2
+      return 1
+    fi
+  fi
+
+  if [[ -z "${resolved_python_bin}" ]]; then
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      resolved_python_bin="python3"
+    else
+      echo "Could not resolve managed Python executable path." >&2
+      return 1
+    fi
+  fi
+
+  PYTHON_VERSION="${resolved_version}"
+  PYTHON_BIN="${resolved_python_bin}"
 }
 
 detect_workspace_dir() {
@@ -85,11 +131,21 @@ detect_workspace_dir() {
 }
 
 DRY_RUN=0
+PYTHON_REQUEST="3"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)
       DRY_RUN=1
       shift
+      ;;
+    --python|--python-version)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for $1" >&2
+        usage
+        exit 1
+      fi
+      PYTHON_REQUEST="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -142,6 +198,13 @@ else
   fi
 fi
 
+resolve_python_spec || exit 1
+PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
+VENV_DIR="${SKILL_DIR}/venv/${PYTHON_VERSION_TAG}/.venv"
+echo "Python request: ${PYTHON_REQUEST}"
+echo "Python version: ${PYTHON_VERSION_TAG}"
+echo "Venv path: ${VENV_DIR}"
+
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   printf '+ mkdir -p %q\n' "${WORKSPACE_DIR}"
   printf '+ cd %q\n' "${WORKSPACE_DIR}"
@@ -154,9 +217,9 @@ else
   fi
 fi
 
-run_cmd uv venv --python 3 .venv
-
-run_cmd uv sync
+run_cmd mkdir -p "$(dirname "${VENV_DIR}")"
+run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
+run_cmd env UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv sync
 
 echo "Done."
-echo "Activate with: source ${WORKSPACE_DIR}/.venv/bin/activate"
+echo "Activate with: source ${VENV_DIR}/bin/activate"
