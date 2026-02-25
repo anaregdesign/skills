@@ -16,12 +16,11 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  source switch-python.sh --python <version> [--workspace <dir>]
+  source switch-python.sh --python <version>
   source switch-python.sh --python 3.12.10
-  source switch-python.sh --python 3.13 --workspace ~/work/my-app
 
 Dry run (can run without source):
-  switch-python.sh --dry-run --python 3.12.10 --workspace ~/work/my-app
+  switch-python.sh --dry-run --python 3.12.10
 EOF
 }
 
@@ -48,65 +47,6 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_SOURCE}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-expand_home_path() {
-  local path="$1"
-  case "${path}" in
-    "~")
-      printf '%s\n' "${HOME}"
-      ;;
-    "~/"*)
-      printf '%s/%s\n' "${HOME}" "${path#~/}"
-      ;;
-    *)
-      printf '%s\n' "${path}"
-      ;;
-  esac
-}
-
-detect_workspace_dir() {
-  local explicit_dir="${1:-}"
-  local detected_dir=""
-  local git_root=""
-
-  if [[ -n "${explicit_dir}" ]]; then
-    detected_dir="${explicit_dir}"
-  elif [[ -f "${PWD}/pyproject.toml" ]]; then
-    detected_dir="${PWD}"
-  else
-    if command -v git >/dev/null 2>&1; then
-      git_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-    fi
-    if [[ -n "${git_root}" && -f "${git_root}/pyproject.toml" ]]; then
-      detected_dir="${git_root}"
-    elif [[ -n "${git_root}" ]]; then
-      detected_dir="${git_root}"
-    elif [[ -n "${PWD}" ]]; then
-      detected_dir="${PWD}"
-    fi
-  fi
-
-  if [[ -z "${detected_dir}" ]]; then
-    if [[ -t 0 ]]; then
-      read -r -p "Workspace directory was not auto-detected. Enter path: " detected_dir
-    else
-      echo "Workspace directory was not auto-detected. Pass --workspace <dir>." >&2
-      return 1
-    fi
-  fi
-
-  detected_dir="$(expand_home_path "${detected_dir}")"
-  if [[ -z "${detected_dir}" ]]; then
-    echo "Workspace directory is empty." >&2
-    return 1
-  fi
-
-  if [[ "${detected_dir}" != /* ]]; then
-    detected_dir="${PWD}/${detected_dir}"
-  fi
-
-  printf '%s\n' "${detected_dir}"
-}
 
 ensure_uv() {
   if command -v uv >/dev/null 2>&1; then
@@ -172,7 +112,6 @@ resolve_python_spec() {
 }
 
 DRY_RUN=0
-WORKSPACE_ARG=""
 PYTHON_REQUEST=""
 
 while [[ $# -gt 0 ]]; do
@@ -188,15 +127,6 @@ while [[ $# -gt 0 ]]; do
         if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
       fi
       PYTHON_REQUEST="$2"
-      shift 2
-      ;;
-    --workspace)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --workspace" >&2
-        usage
-        if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-      fi
-      WORKSPACE_ARG="$2"
       shift 2
       ;;
     -h|--help)
@@ -226,11 +156,6 @@ if [[ "${IS_SOURCED}" -ne 1 && "${DRY_RUN}" -ne 1 ]]; then
   echo "Example: source scripts/switch-python.sh --python ${PYTHON_REQUEST}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
-
-if ! WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")"; then
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-fi
-echo "Workspace directory: ${WORKSPACE_DIR}"
 
 ASSETS_BASE_DIR="${SKILL_DIR}/assets"
 if ! run_cmd mkdir -p "${ASSETS_BASE_DIR}"; then

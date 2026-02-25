@@ -1,5 +1,4 @@
 param(
-    [string]$WorkspaceDir,
     [Parameter(Mandatory = $true)]
     [string]$PythonVersion,
     [switch]$DryRun
@@ -27,60 +26,6 @@ function Invoke-Step {
     if ($LASTEXITCODE -ne 0) {
         throw "Step failed: $Display (exit code: $LASTEXITCODE)"
     }
-}
-
-function Resolve-WorkspaceDir {
-    param(
-        [string]$ExplicitDir
-    )
-
-    $detectedDir = $null
-
-    if ($ExplicitDir) {
-        $detectedDir = $ExplicitDir
-    }
-    elseif (Test-Path (Join-Path (Get-Location) "pyproject.toml")) {
-        $detectedDir = (Get-Location).Path
-    }
-    else {
-        $gitRoot = $null
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            try {
-                $candidate = (git rev-parse --show-toplevel 2>$null | Select-Object -First 1)
-                if ($candidate) {
-                    $gitRoot = $candidate.Trim()
-                }
-            }
-            catch {
-                $gitRoot = $null
-            }
-        }
-
-        if ($gitRoot -and (Test-Path (Join-Path $gitRoot "pyproject.toml"))) {
-            $detectedDir = $gitRoot
-        }
-        elseif ($gitRoot) {
-            $detectedDir = $gitRoot
-        }
-        else {
-            $detectedDir = (Get-Location).Path
-        }
-    }
-
-    if (-not $detectedDir) {
-        if ([Environment]::UserInteractive) {
-            $detectedDir = Read-Host "Workspace directory was not auto-detected. Enter path"
-        }
-        else {
-            throw "Workspace directory was not auto-detected. Pass -WorkspaceDir."
-        }
-    }
-
-    if (-not $detectedDir) {
-        throw "Workspace directory is empty."
-    }
-
-    return [System.IO.Path]::GetFullPath($detectedDir)
 }
 
 function Ensure-Uv {
@@ -172,8 +117,6 @@ if (-not $isDotSourced -and -not $DryRun) {
     exit 1
 }
 
-$WorkspaceDir = Resolve-WorkspaceDir -ExplicitDir $WorkspaceDir
-Write-Host "Workspace directory: $WorkspaceDir"
 $assetsBaseDir = Join-Path $SkillDir "assets"
 
 Invoke-Step -Display "New-Item -ItemType Directory -Path '$assetsBaseDir' -Force" -Action {

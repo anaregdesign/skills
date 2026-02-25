@@ -1,14 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$WorkspaceDir,
-    [Parameter(Mandatory = $true)]
     [string[]]$Packages,
     [switch]$DryRun
 )
-
-# NOTE:
-# -WorkspaceDir is kept for compatibility. Dependency scope is always the
-# version project under <skill-dir>/assets/vX.Y.Z.
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $PSCommandPath

@@ -4,16 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  add-deps.sh [--dry-run] <workspace-dir> <package...>
-
-Notes:
-  <workspace-dir> is kept for compatibility, but dependency scope is
-  always the version project under <skill-dir>/assets/vX.Y.Z.
+  add-deps.sh [--dry-run] <package...>
 
 Examples:
-  add-deps.sh ~/work/my-app requests
-  add-deps.sh ~/work/my-app requests rich pydantic
-  add-deps.sh --dry-run ~/work/my-app fastapi uvicorn
+  add-deps.sh requests
+  add-deps.sh requests rich pydantic
+  add-deps.sh --dry-run fastapi uvicorn
 EOF
 }
 
@@ -105,13 +101,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ $# -lt 2 ]]; then
+if [[ $# -lt 1 ]]; then
   usage
   exit 1
 fi
 
-WORKSPACE_DIR="$1"
-shift
 PACKAGES=("$@")
 
 if ! command -v uv >/dev/null 2>&1; then

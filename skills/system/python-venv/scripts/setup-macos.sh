@@ -4,13 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  setup-macos.sh [--dry-run] [--python <version>] [workspace-dir]
+  setup-macos.sh [--dry-run] [--python <version>]
 
 Examples:
   setup-macos.sh
   setup-macos.sh --python 3.12
-  setup-macos.sh --python 3.12.10 ~/work/my-app
-  setup-macos.sh ~/work/my-app
+  setup-macos.sh --python 3.12.10
   setup-macos.sh --dry-run
 EOF
 }
@@ -29,21 +28,6 @@ run_cmd() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-expand_home_path() {
-  local path="$1"
-  case "${path}" in
-    "~")
-      printf '%s\n' "${HOME}"
-      ;;
-    "~/"*)
-      printf '%s/%s\n' "${HOME}" "${path#~/}"
-      ;;
-    *)
-      printf '%s\n' "${path}"
-      ;;
-  esac
-}
 
 resolve_python_spec() {
   local python_json=""
@@ -86,50 +70,6 @@ resolve_python_spec() {
   PYTHON_BIN="${resolved_python_bin}"
 }
 
-detect_workspace_dir() {
-  local explicit_dir="${1:-}"
-  local detected_dir=""
-  local git_root=""
-
-  if [[ -n "${explicit_dir}" ]]; then
-    detected_dir="${explicit_dir}"
-  elif [[ -f "${PWD}/pyproject.toml" ]]; then
-    detected_dir="${PWD}"
-  else
-    if command -v git >/dev/null 2>&1; then
-      git_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-    fi
-    if [[ -n "${git_root}" && -f "${git_root}/pyproject.toml" ]]; then
-      detected_dir="${git_root}"
-    elif [[ -n "${git_root}" ]]; then
-      detected_dir="${git_root}"
-    elif [[ -n "${PWD}" ]]; then
-      detected_dir="${PWD}"
-    fi
-  fi
-
-  if [[ -z "${detected_dir}" ]]; then
-    if [[ -t 0 ]]; then
-      read -r -p "Workspace directory was not auto-detected. Enter path: " detected_dir
-    else
-      echo "Workspace directory was not auto-detected. Pass [workspace-dir]." >&2
-      return 1
-    fi
-  fi
-
-  detected_dir="$(expand_home_path "${detected_dir}")"
-  if [[ -z "${detected_dir}" ]]; then
-    echo "Workspace directory is empty." >&2
-    return 1
-  fi
-
-  if [[ "${detected_dir}" != /* ]]; then
-    detected_dir="${PWD}/${detected_dir}"
-  fi
-
-  printf '%s\n' "${detected_dir}"
-}
-
 DRY_RUN=0
 PYTHON_REQUEST="3"
 while [[ $# -gt 0 ]]; do
@@ -166,19 +106,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ $# -gt 1 ]]; then
+if [[ $# -gt 0 ]]; then
   echo "Too many arguments." >&2
   usage
   exit 1
 fi
-
-WORKSPACE_ARG=""
-if [[ $# -eq 1 ]]; then
-  WORKSPACE_ARG="$1"
-fi
-
-WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")" || exit 1
-echo "Workspace directory: ${WORKSPACE_DIR}"
 
 ASSETS_BASE_DIR="${SKILL_DIR}/assets"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
