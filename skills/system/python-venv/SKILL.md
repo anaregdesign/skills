@@ -5,6 +5,8 @@ description: |
   Trigger this skill first whenever the conversation context requires Python
   execution, package management, or dependency error handling.
   Manage per-version environments at `<skill-dir>/assets/vX.Y.Z/.venv`.
+  Generated scripts must be placed under `<skill-dir>/assets/vX.Y.Z/src` and run
+  via the per-version runner in that directory.
 ---
 
 # Python Venv
@@ -18,6 +20,7 @@ Python 環境が必要な依頼では、この skill を最初に実行する。
 - ユーザが `venv` / `.venv` の作成を求めたとき
 - ユーザが Python interpreter 設定や version 指定を求めたとき
 - ユーザが package 導入準備（依存解決）を求めたとき
+- 文脈上、Python Script の実行を求められたとき（生成 script 実行を含む）
 - `ModuleNotFoundError` など依存不足 error が出ているとき
 - 同じ version の env で runtime/import error が頻発しているとき
 - ユーザが明示していなくても、次の手順で Python 実行が必要だと判断できるとき
@@ -96,22 +99,29 @@ powershell -ExecutionPolicy ByPass `
 
 - 役割: `uv` の確認/導入、指定 Python の env 作成/同期
 - 入力: Python version (任意)
-- 出力: `<skill-dir>/assets/vX.Y.Z/.venv`
-- 依存: `uv`, `assets/vX.Y.Z/pyproject.toml`（version ごとに `uv init --bare` で管理）
+- 出力: `assets/vX.Y.Z/.venv`, `assets/vX.Y.Z/pyproject.toml`, `assets/vX.Y.Z/uv.lock`, `assets/vX.Y.Z/src/run-generated.*`
+- 依存: `uv`（なければ setup 内で導入）
 
 ### switch-python.*
 
 - 役割: 指定 version の env がなければ作成し、`deactivate -> activate`
 - 入力: Python version（必須）
-- 出力: current shell の active env が指定 version に切替済み
-- 依存: `setup-*` と同じ基盤。Bash は `source`、PowerShell は dot-source 必須
+- 出力: current shell の active env が指定 version に切替済み、`assets/vX.Y.Z/src/run-generated.*`
+- 依存: `setup-*` の成果物を再利用（不足時は同等成果物を自動作成）。Bash は `source`、PowerShell は dot-source 必須
 
 ### add-deps.*
 
 - 役割: 依存追加のみ (`uv add -> uv lock -> uv sync`)
 - 入力: package list（必須）
-- 出力: 指定 env の依存関係更新
-- 依存: 既存 env と version project（`assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`）
+- 出力: 指定 env の依存関係更新、`assets/vX.Y.Z/uv.lock` 更新
+- 依存: `setup-*` または `switch-python.*` により作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
+
+### src/run-generated.*
+
+- 役割: 生成された Python script を、対象 version project の env で実行する
+- 入力: `assets/vX.Y.Z/src/` 配下の script path（`hello.py` など）
+- 出力: script が `assets/vX.Y.Z/.venv` を使って実行される
+- 依存: `setup-*` または `switch-python.*` が配置する `assets/vX.Y.Z/src/run-generated.*`、`assets/vX.Y.Z/.venv`
 
 ### remove-python.*
 
@@ -151,88 +161,57 @@ powershell -ExecutionPolicy ByPass `
 
 ## Workflow
 
-### Step 1: `uv` が使えるか確認する
+### Step 1: `setup-*` で version project を作成する
+
+依存関係:
+- なし（初期ステップ）
+
+成果物:
+- `assets/vX.Y.Z/.venv`
+- `assets/vX.Y.Z/pyproject.toml`
+- `assets/vX.Y.Z/uv.lock`
+- `assets/vX.Y.Z/src/run-generated.*`
+
+### Step 2: `switch-python.*` で作業対象 version に切り替える
+
+依存関係:
+- Step 1 の成果物（不足時は `switch` が自動補完）
+
+成果物:
+- current shell の active env が対象 version に切替済み
+- `assets/vX.Y.Z/src/run-generated.*` が配置済み
+
+### Step 3: 生成 script を `assets/vX.Y.Z/src/`（= `../vX.Y.Z/src/`）へ配置して runner で実行する
+
+依存関係:
+- Step 1 または Step 2 による `assets/vX.Y.Z/.venv`
+- Step 1 または Step 2 による `assets/vX.Y.Z/src/run-generated.*`
+
+実行例:
 
 ```bash
-uv --version
-```
-
-### Step 2: `uv` が使えない場合のみ install する
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+cp /path/to/generated.py <skill-dir>/assets/v3.12.10/src/generated.py
+<skill-dir>/assets/v3.12.10/src/run-generated.sh generated.py
 ```
 
 ```powershell
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c `
-  "irm https://astral.sh/uv/install.ps1 | iex"
+Copy-Item C:\path\to\generated.py <skill-dir>\assets\v3.12.10\src\generated.py
+& <skill-dir>\assets\v3.12.10\src\run-generated.ps1 generated.py
 ```
 
-### Step 3: 要求された Python version の env を作成する
+### Step 4: 不足 library があれば `add-deps.*` を実行する
 
-作成先は必ず次の固定 path にする。
+依存関係:
+- Step 1 または Step 2 の成果物
 
-- `<skill-dir>/assets/vX.Y.Z/.venv`
+成果物:
+- `assets/vX.Y.Z/uv.lock` 更新
+- 対象 env に依存が同期済み
 
-要求 version が既存 env にない場合は新規作成する。
-同じ version が既にある場合は再作成せずに再利用する。
+### Step 5: 環境破損時は `remove-python.*` の後に `setup-*` または `switch-python.*` で再作成する
 
-```bash
-uv venv --python <resolved-python> \
-  <skill-dir>/assets/vX.Y.Z/.venv
-```
-
-### Step 4: `assets/vX.Y.Z` に移動して project を初期化/同期する
-
-```bash
-uv --directory <skill-dir>/assets/vX.Y.Z init --bare --python <resolved-python>
-env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT=<skill-dir>/assets/vX.Y.Z/.venv \
-  uv --project <skill-dir>/assets/vX.Y.Z sync --python <resolved-python>
-```
-
-### Step 5: 現在 env を deactivate して要求 version を activate する
-
-```bash
-source scripts/switch-python.sh --python <version>
-```
-
-```powershell
-. .\scripts\switch-python.ps1 -PythonVersion <version>
-```
-
-### Step 6: 後から不足 library が見つかったら依存追加 script を使う
-
-```bash
-bash scripts/add-deps.sh <pkg1> [pkg2...]
-```
-
-```powershell
-powershell -ExecutionPolicy ByPass `
-  -File scripts/add-deps.ps1 `
-  -Packages <pkg1>,<pkg2>
-```
-
-### Step 7: 環境が壊れた version は丸ごと削除して作り直す
-
-同じ version で error が頻発するときは、個別修復より先にこの手順を使う。
-指定 version の `assets/vX.Y.Z` を削除し、`setup-*` か
-`switch-python.*` で再作成する。
-
-```bash
-bash scripts/remove-python.sh --python 3.12.10
-bash scripts/setup-macos.sh --python 3.12.10
-```
-
-```powershell
-powershell -ExecutionPolicy ByPass `
-  -File scripts/remove-python.ps1 `
-  -PythonVersion 3.12.10
-powershell -ExecutionPolicy ByPass `
-  -File scripts/setup-windows.ps1 `
-  -PythonVersion 3.12.10
-```
+依存関係:
+- 対象 env が active でないこと（先に deactivate）
 
 ## Rules
 
@@ -240,6 +219,8 @@ powershell -ExecutionPolicy ByPass `
 - version ごとに project と依存を分離する。
 - `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` で管理する。
 - setup/switch/add/remove はこの skill の scripts を使う。
+- 生成 script は必ず `assets/vX.Y.Z/src/` に配置する。
+- 生成 script の実行は必ず `assets/vX.Y.Z/src/run-generated.*` を使い、対象 project の env（`assets/vX.Y.Z/.venv`）を使用する。
 - `add-deps.*` はこの skill が作成した env（`<skill-dir>/assets/vX.Y.Z/.venv`）だけを対象にする。
 - `remove-python.*` は指定した `assets/vX.Y.Z` だけを削除対象にする。
 - active な env は削除しない（先に deactivate してから削除する）。

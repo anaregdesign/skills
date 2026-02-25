@@ -110,6 +110,36 @@ function Resolve-PythonSpec {
     }
 }
 
+function Install-SrcRunnerScripts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VersionDir
+    )
+
+    $srcDir = Join-Path $VersionDir "src"
+    $shellTemplate = Join-Path $ScriptDir "src-runner.sh"
+    $pwshTemplate = Join-Path $ScriptDir "src-runner.ps1"
+    $shellRunner = Join-Path $srcDir "run-generated.sh"
+    $pwshRunner = Join-Path $srcDir "run-generated.ps1"
+
+    if (-not (Test-Path $shellTemplate)) {
+        throw "Runner template not found: $shellTemplate"
+    }
+    if (-not (Test-Path $pwshTemplate)) {
+        throw "Runner template not found: $pwshTemplate"
+    }
+
+    Invoke-Step -Display "New-Item -ItemType Directory -Path '$srcDir' -Force" -Action {
+        New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+    }
+    Invoke-Step -Display "Copy-Item -Path '$shellTemplate' -Destination '$shellRunner' -Force" -Action {
+        Copy-Item -Path $shellTemplate -Destination $shellRunner -Force
+    }
+    Invoke-Step -Display "Copy-Item -Path '$pwshTemplate' -Destination '$pwshRunner' -Force" -Action {
+        Copy-Item -Path $pwshTemplate -Destination $pwshRunner -Force
+    }
+}
+
 $isDotSourced = $MyInvocation.InvocationName -eq "."
 if (-not $isDotSourced -and -not $DryRun) {
     Write-Error "Run this script with dot-sourcing to apply deactivate/activate in current shell."
@@ -194,6 +224,10 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$projectDi
         }
     }
 }
+
+Install-SrcRunnerScripts -VersionDir $pythonVersionDir
+Write-Host "Generated script runner (bash): $(Join-Path $pythonVersionDir 'src\run-generated.sh')"
+Write-Host "Generated script runner (PowerShell): $(Join-Path $pythonVersionDir 'src\run-generated.ps1')"
 
 if ($DryRun) {
     Write-Host "+ deactivate (if active)"
