@@ -1,5 +1,5 @@
 ---
-name: workspace-venv
+name: python-venv
 description: |
   Default first-step skill for Python runtime setup.
   Trigger this skill when any of the following applies:
@@ -17,7 +17,7 @@ description: |
   requested one.
 ---
 
-# Workspace Venv
+# Python Venv
 
 `uv` で workspace 単位の Python 実行環境を管理する。
 
