@@ -4,8 +4,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $PSCommandPath
-$SkillDir = Split-Path -Parent $ScriptDir
+$ResolvedScriptPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
+$ScriptDir = Split-Path -Parent $ResolvedScriptPath
+$DefaultSkillDir = Split-Path -Parent $ScriptDir
+$SkillDir = if ($env:PYTHON_VENV_SKILL_DIR) { $env:PYTHON_VENV_SKILL_DIR } else { $DefaultSkillDir }
+$SkillDir = [System.IO.Path]::GetFullPath($SkillDir)
+$AssetsBaseDir = if ($env:PYTHON_VENV_ASSETS_DIR) { $env:PYTHON_VENV_ASSETS_DIR } else { Join-Path $SkillDir "assets" }
+$AssetsBaseDir = [System.IO.Path]::GetFullPath($AssetsBaseDir)
+$EnvFile = Join-Path $AssetsBaseDir ".env"
 
 function Invoke-Step {
     param(
@@ -82,10 +88,71 @@ function Resolve-PythonSpec {
     }
 }
 
-$assetsBaseDir = Join-Path $SkillDir "assets"
+function Import-DotEnv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
 
-Invoke-Step -Display "New-Item -ItemType Directory -Path '$assetsBaseDir' -Force" -Action {
-    New-Item -ItemType Directory -Path $assetsBaseDir -Force | Out-Null
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    foreach ($line in Get-Content -Path $Path) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+        if ($line.TrimStart().StartsWith("#")) {
+            continue
+        }
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2]
+        }
+    }
+}
+
+function Write-DotEnv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VersionTag,
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectDir,
+        [Parameter(Mandatory = $true)]
+        [string]$VenvDir,
+        [Parameter(Mandatory = $true)]
+        [string]$PythonBin
+    )
+
+    if ($DryRun) {
+        Write-Host "+ write $EnvFile"
+        return
+    }
+
+    @(
+        "PYTHON_VENV_SKILL_DIR=$SkillDir"
+        "PYTHON_VENV_ASSETS_DIR=$AssetsBaseDir"
+        "PYTHON_VENV_ACTIVE_VERSION=$VersionTag"
+        "PYTHON_VENV_ACTIVE_PROJECT_DIR=$ProjectDir"
+        "PYTHON_VENV_ACTIVE_VENV_DIR=$VenvDir"
+        "PYTHON_VENV_ACTIVE_PYTHON_BIN=$PythonBin"
+        "PYTHON_VENV_LAST_ACTION=setup"
+    ) | Set-Content -Path $EnvFile -Encoding UTF8
+}
+
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$AssetsBaseDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
+}
+Import-DotEnv -Path $EnvFile
+if ($env:PYTHON_VENV_ASSETS_DIR) {
+    $candidateAssets = [System.IO.Path]::GetFullPath($env:PYTHON_VENV_ASSETS_DIR)
+    if ($candidateAssets -ne $AssetsBaseDir) {
+        $AssetsBaseDir = $candidateAssets
+        $EnvFile = Join-Path $AssetsBaseDir ".env"
+        Invoke-Step -Display "New-Item -ItemType Directory -Path '$AssetsBaseDir' -Force" -Action {
+            New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
+        }
+        Import-DotEnv -Path $EnvFile
+    }
 }
 
 if (Get-Command uv -ErrorAction SilentlyContinue) {
@@ -115,7 +182,7 @@ else {
 
 $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
-$pythonVersionDir = Join-Path $assetsBaseDir $pythonVersionTag
+$pythonVersionDir = Join-Path $AssetsBaseDir $pythonVersionTag
 $venvDir = Join-Path $pythonVersionDir ".venv"
 $srcDir = Join-Path $pythonVersionDir "src"
 $projectDir = $pythonVersionDir
@@ -156,32 +223,10 @@ else {
     }
 }
 
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$projectDir' sync --python '$($pythonSpec.Path)'" -Action {
-    $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
-    $previousVirtualEnv = $env:VIRTUAL_ENV
-    $env:UV_PROJECT_ENVIRONMENT = $venvDir
-    try {
-        if ($null -ne $previousVirtualEnv) {
-            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
-        }
-        uv --project $projectDir sync --python $pythonSpec.Path
-    }
-    finally {
-        if ($null -ne $previousVirtualEnv) {
-            $env:VIRTUAL_ENV = $previousVirtualEnv
-        }
-        else {
-            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
-        }
-
-        if ($null -ne $previousProjectEnv) {
-            $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnv
-        }
-        else {
-            Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
-        }
-    }
+Invoke-Step -Display "uv --project '$projectDir' sync --python '$($pythonSpec.Path)'" -Action {
+    uv --project $projectDir sync --python $pythonSpec.Path
 }
+Write-DotEnv -VersionTag $pythonVersionTag -ProjectDir $projectDir -VenvDir $venvDir -PythonBin $pythonSpec.Path
 
 Write-Host "Done."
 Write-Host "Activate with: $venvDir\Scripts\Activate.ps1"

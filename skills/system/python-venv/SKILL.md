@@ -51,13 +51,14 @@ Later dependency-only add script:
 
 ```bash
 # macOS / Linux
-bash scripts/add-deps.sh [--dry-run] <pkg1> [pkg2...]
+bash scripts/add-deps.sh [--dry-run] [--python <version>] <pkg1> [pkg2...]
 ```
 
 ```powershell
 # Windows PowerShell
 powershell -ExecutionPolicy ByPass `
   -File scripts/add-deps.ps1 `
+  [-PythonVersion <version>] `
   -Packages <pkg1>,<pkg2> `
   [-DryRun]
 ```
@@ -66,14 +67,14 @@ Version switch script:
 
 ```bash
 # macOS / Linux (must run with source)
-source scripts/switch-python.sh --python <version>
-source scripts/switch-python.sh --dry-run --python <version>
+source scripts/switch-python.sh [--python <version>]
+source scripts/switch-python.sh --dry-run [--python <version>]
 ```
 
 ```powershell
 # Windows PowerShell (must run with dot-source)
 . .\scripts\switch-python.ps1 `
-  -PythonVersion <version> `
+  [-PythonVersion <version>] `
   [-DryRun]
 ```
 
@@ -81,17 +82,28 @@ Version remove script:
 
 ```bash
 # macOS / Linux
-bash scripts/remove-python.sh --python <x.y.z>
-bash scripts/remove-python.sh --dry-run --python <x.y.z>
+bash scripts/remove-python.sh [--python <x.y.z>]
+bash scripts/remove-python.sh --dry-run [--python <x.y.z>]
 ```
 
 ```powershell
 # Windows PowerShell
 powershell -ExecutionPolicy ByPass `
   -File scripts/remove-python.ps1 `
-  -PythonVersion <x.y.z> `
+  [-PythonVersion <x.y.z>] `
   [-DryRun]
 ```
+
+`assets/.env` に以下を永続化し、全 script が参照する:
+- `PYTHON_VENV_SKILL_DIR`
+- `PYTHON_VENV_ASSETS_DIR`
+- `PYTHON_VENV_ACTIVE_VERSION`
+- `PYTHON_VENV_ACTIVE_PROJECT_DIR`
+- `PYTHON_VENV_ACTIVE_VENV_DIR`
+- `PYTHON_VENV_ACTIVE_PYTHON_BIN`
+- `PYTHON_VENV_LAST_ACTION`
+
+`--python` を省略できるのは、`assets/.env` に `PYTHON_VENV_ACTIVE_VERSION` がある場合のみ。
 
 ## Dependency Map
 
@@ -104,17 +116,17 @@ powershell -ExecutionPolicy ByPass `
 
 ### switch-python.*
 
-- 役割: 指定 version の env がなければ作成し、`deactivate -> activate`
-- 入力: Python version（必須）
-- 出力: current shell の active env が指定 version に切替済み、`assets/vX.Y.Z/src/`、cwd は変更しない
-- 依存: `setup-*` の成果物を再利用（不足時は同等成果物を自動作成）。Bash は `source`、PowerShell は dot-source 必須
+- 役割: 既存の指定 version env を `deactivate -> activate` で切替える
+- 入力: Python version（任意。未指定時は `assets/.env` の `PYTHON_VENV_ACTIVE_VERSION`）
+- 出力: current shell の active env が指定 version に切替済み、`assets/vX.Y.Z/src/`
+- 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv`。Bash は `source`、PowerShell は dot-source 必須
 
 ### add-deps.*
 
 - 役割: 依存追加のみ (`uv add -> uv lock -> uv sync`)
-- 入力: package list（必須）
+- 入力: Python version（任意。未指定時は `assets/.env` の `PYTHON_VENV_ACTIVE_VERSION`）, package list（必須）
 - 出力: 指定 env の依存関係更新、`assets/vX.Y.Z/uv.lock` 更新
-- 依存: `setup-*` または `switch-python.*` により作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
+- 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
 
 ### uv run python
 
@@ -126,7 +138,7 @@ powershell -ExecutionPolicy ByPass `
 ### remove-python.*
 
 - 役割: 指定 version directory（`assets/vX.Y.Z`）を丸ごと削除する
-- 入力: Python version（必須、`x.y.z`）
+- 入力: Python version（任意。未指定時は `assets/.env` の `PYTHON_VENV_ACTIVE_VERSION`）
 - 出力: 指定 version の `.venv`/`pyproject.toml`/`uv.lock` が削除済み
 - 依存: 対象 version directory が存在すること
 
@@ -135,9 +147,9 @@ Dry run:
 ```bash
 bash scripts/setup-macos.sh --dry-run --python 3.12
 bash scripts/setup-linux.sh --dry-run --python 3.12
-bash scripts/add-deps.sh --dry-run requests rich
-bash scripts/switch-python.sh --dry-run --python 3.12
-bash scripts/remove-python.sh --dry-run --python 3.12.10
+bash scripts/add-deps.sh --dry-run --python 3.12 requests rich
+bash scripts/switch-python.sh --dry-run
+bash scripts/remove-python.sh --dry-run
 ```
 
 ```powershell
@@ -147,15 +159,16 @@ powershell -ExecutionPolicy ByPass `
   [-PythonVersion 3.12]
 powershell -ExecutionPolicy ByPass `
   -File scripts/add-deps.ps1 `
+  [-PythonVersion 3.12] `
   -Packages requests,rich `
   -DryRun
 powershell -ExecutionPolicy ByPass `
   -File scripts/switch-python.ps1 `
-  -PythonVersion 3.12 `
+  [-PythonVersion 3.12] `
   -DryRun
 powershell -ExecutionPolicy ByPass `
   -File scripts/remove-python.ps1 `
-  -PythonVersion 3.12.10 `
+  [-PythonVersion 3.12.10] `
   -DryRun
 ```
 
@@ -175,14 +188,13 @@ powershell -ExecutionPolicy ByPass `
 ### Step 2: `switch-python.*` で作業対象 version に切り替える
 
 依存関係:
-- Step 1 の成果物（不足時は `switch` が自動補完）
+- Step 1 の成果物（`switch` は環境作成を行わない）
 
 成果物:
 - current shell の active env が対象 version に切替済み
 - `assets/vX.Y.Z/src/` が利用可能
-- current shell の cwd は維持される
 
-### Step 3: 生成 script を `assets/vX.Y.Z/src/`（= `../vX.Y.Z/src/`）へ配置し、`uv run python` で実行する
+### Step 3: 生成 script を `assets/vX.Y.Z/src/` へ配置し、`uv run python` で実行する
 
 依存関係:
 - Step 1 または Step 2 による `assets/vX.Y.Z/.venv`
@@ -197,22 +209,14 @@ powershell -ExecutionPolicy ByPass `
 PROJECT_DIR="<skill-dir>/assets/v3.12.10"
 SCRIPT_PATH="${PROJECT_DIR}/src/generated.py"
 cp /path/to/generated.py "${SCRIPT_PATH}"
-env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${PROJECT_DIR}/.venv" \
-  uv --project "${PROJECT_DIR}" run python "${SCRIPT_PATH}"
+uv --project "${PROJECT_DIR}" run python "${SCRIPT_PATH}"
 ```
 
 ```powershell
 $projectDir = "<skill-dir>\assets\v3.12.10"
 $scriptPath = "$projectDir\src\generated.py"
 Copy-Item C:\path\to\generated.py $scriptPath
-$env:UV_PROJECT_ENVIRONMENT = "$projectDir\.venv"
-try {
-  Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
-  uv --project $projectDir run python $scriptPath
-}
-finally {
-  Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
-}
+uv --project $projectDir run python $scriptPath
 ```
 
 コンテキスト内で生成された script を保存して実行する例:
@@ -223,8 +227,7 @@ SCRIPT_PATH="${PROJECT_DIR}/src/generated.py"
 cat > "${SCRIPT_PATH}" <<'PY'
 print("hello from generated script")
 PY
-env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${PROJECT_DIR}/.venv" \
-  uv --project "${PROJECT_DIR}" run python "${SCRIPT_PATH}"
+uv --project "${PROJECT_DIR}" run python "${SCRIPT_PATH}"
 ```
 
 ```powershell
@@ -233,26 +236,32 @@ $scriptPath = "$projectDir\src\generated.py"
 @'
 print("hello from generated script")
 '@ | Set-Content $scriptPath -Encoding UTF8
-$env:UV_PROJECT_ENVIRONMENT = "$projectDir\.venv"
-try {
-  Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
-  uv --project $projectDir run python $scriptPath
-}
-finally {
-  Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
-}
+uv --project $projectDir run python $scriptPath
 ```
 
 ### Step 4: 不足 library があれば `add-deps.*` を実行する
 
 依存関係:
-- Step 1 または Step 2 の成果物
+- Step 1 の成果物（`assets/vX.Y.Z/.venv`, `assets/vX.Y.Z/pyproject.toml`）
 
 成果物:
 - `assets/vX.Y.Z/uv.lock` 更新
 - 対象 env に依存が同期済み
 
-### Step 5: 環境破損時は `remove-python.*` の後に `setup-*` または `switch-python.*` で再作成する
+実行例:
+
+```bash
+bash scripts/add-deps.sh --python 3.12 requests rich
+```
+
+```powershell
+powershell -ExecutionPolicy ByPass `
+  -File scripts/add-deps.ps1 `
+  -PythonVersion 3.12 `
+  -Packages requests,rich
+```
+
+### Step 5: 環境破損時は `remove-python.*` の後に `setup-*` で再作成し、必要なら `switch-python.*` で切替える
 
 依存関係:
 - 対象 env が active でないこと（先に deactivate）
@@ -263,7 +272,9 @@ finally {
 - version ごとに project と依存を分離する。
 - `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` で管理する。
 - setup/switch/add/remove はこの skill の scripts を使う。
+- `setup-*` は環境作成/同期のみ、`switch-python.*` は切替のみ、`add-deps.*` は依存追加のみ、`remove-python.*` は削除のみを担当する。
 - setup/switch/add/remove 実行時に cwd を変更しない。
+- 重要な環境変数は `assets/.env` に永続化し、各 script は `assets/.env` を参照する。
 - 生成 script は必ず `assets/vX.Y.Z/src/` に配置する。
 - 生成 script の実行は必ず `uv --project <abs-project-path> run python <abs-script-path>` を使い、対象 project の env（`assets/vX.Y.Z/.venv`）を使用する。
 - 実行時の path は相対 path ではなく絶対 path を優先する。

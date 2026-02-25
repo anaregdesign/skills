@@ -1,12 +1,17 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$PythonVersion,
+    [string]$PythonVersion = "",
     [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $PSCommandPath
-$SkillDir = Split-Path -Parent $ScriptDir
+$ResolvedScriptPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
+$ScriptDir = Split-Path -Parent $ResolvedScriptPath
+$DefaultSkillDir = Split-Path -Parent $ScriptDir
+$SkillDir = if ($env:PYTHON_VENV_SKILL_DIR) { $env:PYTHON_VENV_SKILL_DIR } else { $DefaultSkillDir }
+$SkillDir = [System.IO.Path]::GetFullPath($SkillDir)
+$AssetsBaseDir = if ($env:PYTHON_VENV_ASSETS_DIR) { $env:PYTHON_VENV_ASSETS_DIR } else { Join-Path $SkillDir "assets" }
+$AssetsBaseDir = [System.IO.Path]::GetFullPath($AssetsBaseDir)
+$EnvFile = Join-Path $AssetsBaseDir ".env"
 
 function Invoke-Step {
     param(
@@ -46,9 +51,68 @@ function Resolve-VersionTag {
     return "v$normalized"
 }
 
+function Import-DotEnv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    foreach ($line in Get-Content -Path $Path) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+        if ($line.TrimStart().StartsWith("#")) {
+            continue
+        }
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            Set-Item -Path "Env:$($Matches[1])" -Value $Matches[2]
+        }
+    }
+}
+
+function Write-ClearedDotEnv {
+    if ($DryRun) {
+        Write-Host "+ write $EnvFile"
+        return
+    }
+
+    @(
+        "PYTHON_VENV_SKILL_DIR=$SkillDir"
+        "PYTHON_VENV_ASSETS_DIR=$AssetsBaseDir"
+        "PYTHON_VENV_LAST_ACTION=remove"
+    ) | Set-Content -Path $EnvFile -Encoding UTF8
+}
+
+if (-not (Test-Path $AssetsBaseDir)) {
+    New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
+}
+Import-DotEnv -Path $EnvFile
+if ($env:PYTHON_VENV_ASSETS_DIR) {
+    $candidateAssets = [System.IO.Path]::GetFullPath($env:PYTHON_VENV_ASSETS_DIR)
+    if ($candidateAssets -ne $AssetsBaseDir) {
+        $AssetsBaseDir = $candidateAssets
+        $EnvFile = Join-Path $AssetsBaseDir ".env"
+        if (-not (Test-Path $AssetsBaseDir)) {
+            New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
+        }
+        Import-DotEnv -Path $EnvFile
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($PythonVersion) -and $env:PYTHON_VENV_ACTIVE_VERSION) {
+    $PythonVersion = $env:PYTHON_VENV_ACTIVE_VERSION
+    Write-Host "Using PYTHON_VENV_ACTIVE_VERSION from $EnvFile: $PythonVersion"
+}
+if ([string]::IsNullOrWhiteSpace($PythonVersion)) {
+    throw "-PythonVersion is required (or set PYTHON_VENV_ACTIVE_VERSION in $EnvFile)."
+}
+
 $versionTag = Resolve-VersionTag -Version $PythonVersion
-$assetsBaseDir = Join-Path $SkillDir "assets"
-$targetDir = Join-Path $assetsBaseDir $versionTag
+$targetDir = Join-Path $AssetsBaseDir $versionTag
 $targetVenv = Join-Path $targetDir ".venv"
 
 Write-Host "Python version: $versionTag"
@@ -66,9 +130,20 @@ if ($env:VIRTUAL_ENV) {
         throw "Target environment is currently active: $active. Deactivate it first."
     }
 }
+elseif ($env:PYTHON_VENV_ACTIVE_VENV_DIR) {
+    $remembered = [System.IO.Path]::GetFullPath($env:PYTHON_VENV_ACTIVE_VENV_DIR).TrimEnd('\\', '/')
+    $target = [System.IO.Path]::GetFullPath($targetVenv).TrimEnd('\\', '/')
+    if ($remembered -eq $target) {
+        Write-Host "Note: $EnvFile indicates this version was last active in another process."
+    }
+}
 
 Invoke-Step -Display "Remove-Item -Path '$targetDir' -Recurse -Force" -Action {
     Remove-Item -Path $targetDir -Recurse -Force
+}
+
+if ($env:PYTHON_VENV_ACTIVE_VERSION -eq $versionTag) {
+    Write-ClearedDotEnv
 }
 
 Write-Host "Done. Removed $targetDir"

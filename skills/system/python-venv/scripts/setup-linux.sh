@@ -26,8 +26,24 @@ run_cmd() {
   "$@"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+resolve_script_dir() {
+  local src="${BASH_SOURCE[0]}"
+  while [[ -h "${src}" ]]; do
+    local dir
+    dir="$(cd -P "$(dirname "${src}")" && pwd)"
+    src="$(readlink "${src}")"
+    if [[ "${src}" != /* ]]; then
+      src="${dir}/${src}"
+    fi
+  done
+  cd -P "$(dirname "${src}")" && pwd
+}
+
+SCRIPT_DIR="$(resolve_script_dir)"
+DEFAULT_SKILL_DIR="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
+SKILL_DIR="${PYTHON_VENV_SKILL_DIR:-${DEFAULT_SKILL_DIR}}"
+ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR:-${SKILL_DIR}/assets}"
+ENV_FILE="${ASSETS_BASE_DIR}/.env"
 
 resolve_python_spec() {
   local python_json=""
@@ -68,6 +84,41 @@ resolve_python_spec() {
 
   PYTHON_VERSION="${resolved_version}"
   PYTHON_BIN="${resolved_python_bin}"
+}
+
+load_env_file() {
+  if [[ -f "${ENV_FILE}" ]]; then
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      line="${line%$'\r'}"
+      line="${line#$'\ufeff'}"
+      [[ -z "${line}" || "${line}" == \#* ]] && continue
+      if [[ "${line}" == *=* ]]; then
+        local key="${line%%=*}"
+        local value="${line#*=}"
+        if [[ "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+          printf -v "${key}" '%s' "${value}"
+          export "${key}"
+        fi
+      fi
+    done < "${ENV_FILE}"
+  fi
+}
+
+persist_env_file() {
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    echo "+ write ${ENV_FILE}"
+    return 0
+  fi
+
+  cat > "${ENV_FILE}" <<EOF
+PYTHON_VENV_SKILL_DIR=${SKILL_DIR}
+PYTHON_VENV_ASSETS_DIR=${ASSETS_BASE_DIR}
+PYTHON_VENV_ACTIVE_VERSION=${PYTHON_VERSION_TAG}
+PYTHON_VENV_ACTIVE_PROJECT_DIR=${PROJECT_DIR}
+PYTHON_VENV_ACTIVE_VENV_DIR=${VENV_DIR}
+PYTHON_VENV_ACTIVE_PYTHON_BIN=${PYTHON_BIN}
+PYTHON_VENV_LAST_ACTION=setup
+EOF
 }
 
 DRY_RUN=0
@@ -112,8 +163,14 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-ASSETS_BASE_DIR="${SKILL_DIR}/assets"
 run_cmd mkdir -p "${ASSETS_BASE_DIR}"
+load_env_file
+if [[ -n "${PYTHON_VENV_ASSETS_DIR:-}" && "${PYTHON_VENV_ASSETS_DIR}" != "${ASSETS_BASE_DIR}" ]]; then
+  ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR}"
+  ENV_FILE="${ASSETS_BASE_DIR}/.env"
+  run_cmd mkdir -p "${ASSETS_BASE_DIR}"
+  load_env_file
+fi
 
 if command -v uv >/dev/null 2>&1; then
   if [[ "${DRY_RUN}" -eq 0 ]]; then
@@ -163,7 +220,8 @@ else
     run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
   fi
 fi
-run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
+run_cmd uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
+persist_env_file
 
 echo "Done."
 echo "Activate with: source ${VENV_DIR}/bin/activate"
