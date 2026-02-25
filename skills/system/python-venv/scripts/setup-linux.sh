@@ -211,21 +211,21 @@ resolve_python_spec || exit 1
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
 PYTHON_VERSION_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
 VENV_DIR="${PYTHON_VERSION_DIR}/.venv"
+PROJECT_DIR="${PYTHON_VERSION_DIR}"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
+run_cmd mkdir -p "${PYTHON_VERSION_DIR}"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  printf '+ mkdir -p %q\n' "${WORKSPACE_DIR}"
-  echo "+ [ -f ${WORKSPACE_DIR}/pyproject.toml ] || uv --directory ${WORKSPACE_DIR} init --python ${PYTHON_BIN}"
+  echo "+ [ -f ${PROJECT_DIR}/pyproject.toml ] || uv --directory ${PROJECT_DIR} init --bare --python ${PYTHON_BIN}"
 else
-  mkdir -p "${WORKSPACE_DIR}"
-  if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
-    run_cmd uv --directory "${WORKSPACE_DIR}" init --python "${PYTHON_BIN}"
+  if [[ ! -f "${PROJECT_DIR}/pyproject.toml" ]]; then
+    run_cmd uv --directory "${PROJECT_DIR}" init --bare --python "${PYTHON_BIN}"
   fi
 fi
+echo "Project directory: ${PROJECT_DIR}"
 
-run_cmd mkdir -p "${PYTHON_VERSION_DIR}"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   printf '+ cd %q\n' "${PYTHON_VERSION_DIR}"
 else
@@ -240,7 +240,7 @@ else
     run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
   fi
 fi
-run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync --python "${PYTHON_BIN}"
+run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
 
 echo "Done."
 echo "Activate with: source ${VENV_DIR}/bin/activate"

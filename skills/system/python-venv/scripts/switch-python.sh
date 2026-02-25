@@ -252,29 +252,27 @@ fi
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
 PYTHON_VERSION_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
 VENV_DIR="${PYTHON_VERSION_DIR}/.venv"
+PROJECT_DIR="${PYTHON_VERSION_DIR}"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
-
-if ! run_cmd mkdir -p "${WORKSPACE_DIR}"; then
-  echo "Failed to prepare workspace directory: ${WORKSPACE_DIR}" >&2
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-fi
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo "+ [ -f ${WORKSPACE_DIR}/pyproject.toml ] || uv --directory ${WORKSPACE_DIR} init --python ${PYTHON_BIN}"
-else
-  if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
-    if ! run_cmd uv --directory "${WORKSPACE_DIR}" init --python "${PYTHON_BIN}"; then
-      echo "Failed to initialize workspace project: ${WORKSPACE_DIR}" >&2
-      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-    fi
-  fi
-fi
 
 if ! run_cmd mkdir -p "${PYTHON_VERSION_DIR}"; then
   echo "Failed to prepare venv directory: ${PYTHON_VERSION_DIR}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "+ [ -f ${PROJECT_DIR}/pyproject.toml ] || uv --directory ${PROJECT_DIR} init --bare --python ${PYTHON_BIN}"
+else
+  if [[ ! -f "${PROJECT_DIR}/pyproject.toml" ]]; then
+    if ! run_cmd uv --directory "${PROJECT_DIR}" init --bare --python "${PYTHON_BIN}"; then
+      echo "Failed to initialize project directory: ${PROJECT_DIR}" >&2
+      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+    fi
+  fi
+fi
+echo "Project directory: ${PROJECT_DIR}"
+
 if ! run_cmd cd "${PYTHON_VERSION_DIR}"; then
   echo "Failed to enter venv directory: ${PYTHON_VERSION_DIR}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
@@ -289,8 +287,8 @@ else
     fi
   fi
 fi
-if ! run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync --python "${PYTHON_BIN}"; then
-  echo "Failed to sync dependencies for Python ${PYTHON_VERSION_TAG} in ${WORKSPACE_DIR}." >&2
+if ! run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"; then
+  echo "Failed to sync dependencies for Python ${PYTHON_VERSION_TAG} in ${PROJECT_DIR}." >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
 

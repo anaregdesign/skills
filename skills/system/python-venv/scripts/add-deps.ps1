@@ -6,6 +6,10 @@ param(
     [switch]$DryRun
 )
 
+# NOTE:
+# -WorkspaceDir is kept for compatibility. Dependency scope is always the
+# version project under <skill-dir>/assets/vX.Y.Z.
+
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $PSCommandPath
 $SkillDir = Split-Path -Parent $ScriptDir
@@ -84,23 +88,25 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 $venvSpec = Resolve-VenvDir
 $pythonBin = Join-Path $venvSpec.Path "Scripts\\python.exe"
 $pythonVersionDir = Split-Path -Parent $venvSpec.Path
+$projectDir = $pythonVersionDir
 Write-Host "Python version: $($venvSpec.VersionTag)"
 Write-Host "Venv path: $($venvSpec.Path)"
 
 if ($DryRun) {
     Write-Host "+ Set-Location '$pythonVersionDir'"
     Write-Host "+ uv --version"
-    Write-Host "+ if (-not (Test-Path '$WorkspaceDir\\pyproject.toml')) { throw 'pyproject.toml not found' }"
+    Write-Host "+ if (-not (Test-Path '$projectDir\\pyproject.toml')) { uv --directory '$projectDir' init --bare --python '$pythonBin' }"
 }
 else {
     Set-Location $pythonVersionDir
     uv --version
-    if (-not (Test-Path (Join-Path $WorkspaceDir "pyproject.toml"))) {
-        throw "pyproject.toml not found in $WorkspaceDir"
+    if (-not (Test-Path (Join-Path $projectDir "pyproject.toml"))) {
+        uv --directory $projectDir init --bare --python $pythonBin
     }
 }
+Write-Host "Project directory: $projectDir"
 
-Invoke-Step -Display ("UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' add --python '$pythonBin' " + ($Packages -join " ")) -Action {
+Invoke-Step -Display ("UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$projectDir' add --python '$pythonBin' " + ($Packages -join " ")) -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
     $previousVirtualEnv = $env:VIRTUAL_ENV
     $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
@@ -108,7 +114,7 @@ Invoke-Step -Display ("UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '
         if ($null -ne $previousVirtualEnv) {
             Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
         }
-        uv --project $WorkspaceDir add --python $pythonBin @Packages
+        uv --project $projectDir add --python $pythonBin @Packages
     }
     finally {
         if ($null -ne $previousVirtualEnv) {
@@ -126,7 +132,7 @@ Invoke-Step -Display ("UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '
         }
     }
 }
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' lock --python '$pythonBin'" -Action {
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$projectDir' lock --python '$pythonBin'" -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
     $previousVirtualEnv = $env:VIRTUAL_ENV
     $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
@@ -134,7 +140,7 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$
         if ($null -ne $previousVirtualEnv) {
             Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
         }
-        uv --project $WorkspaceDir lock --python $pythonBin
+        uv --project $projectDir lock --python $pythonBin
     }
     finally {
         if ($null -ne $previousVirtualEnv) {
@@ -152,7 +158,7 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$
         }
     }
 }
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' sync --python '$pythonBin'" -Action {
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$projectDir' sync --python '$pythonBin'" -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
     $previousVirtualEnv = $env:VIRTUAL_ENV
     $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
@@ -160,7 +166,7 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$
         if ($null -ne $previousVirtualEnv) {
             Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
         }
-        uv --project $WorkspaceDir sync --python $pythonBin
+        uv --project $projectDir sync --python $pythonBin
     }
     finally {
         if ($null -ne $previousVirtualEnv) {

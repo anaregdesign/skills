@@ -177,28 +177,26 @@ $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
 $pythonVersionDir = Join-Path $assetsBaseDir $pythonVersionTag
 $venvDir = Join-Path $pythonVersionDir ".venv"
+$projectDir = $pythonVersionDir
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $pythonVersionTag"
 Write-Host "Venv path: $venvDir"
-
-Invoke-Step -Display "New-Item -ItemType Directory -Path '$WorkspaceDir' -Force" -Action {
-    New-Item -ItemType Directory -Path $WorkspaceDir -Force | Out-Null
-}
-
-if ($DryRun) {
-    Write-Host "+ if (-not (Test-Path '$WorkspaceDir\\pyproject.toml')) { uv --directory '$WorkspaceDir' init --python '$($pythonSpec.Path)' }"
-}
-else {
-    if (-not (Test-Path (Join-Path $WorkspaceDir "pyproject.toml"))) {
-        Invoke-Step -Display "uv --directory '$WorkspaceDir' init --python '$($pythonSpec.Path)'" -Action {
-            uv --directory $WorkspaceDir init --python $pythonSpec.Path
-        }
-    }
-}
-
 Invoke-Step -Display "New-Item -ItemType Directory -Path '$pythonVersionDir' -Force" -Action {
     New-Item -ItemType Directory -Path $pythonVersionDir -Force | Out-Null
 }
+
+if ($DryRun) {
+    Write-Host "+ if (-not (Test-Path '$projectDir\\pyproject.toml')) { uv --directory '$projectDir' init --bare --python '$($pythonSpec.Path)' }"
+}
+else {
+    if (-not (Test-Path (Join-Path $projectDir "pyproject.toml"))) {
+        Invoke-Step -Display "uv --directory '$projectDir' init --bare --python '$($pythonSpec.Path)'" -Action {
+            uv --directory $projectDir init --bare --python $pythonSpec.Path
+        }
+    }
+}
+Write-Host "Project directory: $projectDir"
+
 Invoke-Step -Display "Set-Location '$pythonVersionDir'" -Action {
     Set-Location $pythonVersionDir
 }
@@ -217,7 +215,7 @@ else {
     }
 }
 
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$WorkspaceDir' sync --python '$($pythonSpec.Path)'" -Action {
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$projectDir' sync --python '$($pythonSpec.Path)'" -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
     $previousVirtualEnv = $env:VIRTUAL_ENV
     $env:UV_PROJECT_ENVIRONMENT = $venvDir
@@ -225,7 +223,7 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$Workspace
         if ($null -ne $previousVirtualEnv) {
             Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
         }
-        uv --project $WorkspaceDir sync --python $pythonSpec.Path
+        uv --project $projectDir sync --python $pythonSpec.Path
     }
     finally {
         if ($null -ne $previousVirtualEnv) {

@@ -95,7 +95,7 @@ source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
 - 役割: `uv` の確認/導入、workspace 準備、指定 Python の env 作成/同期
 - 入力: `workspace-dir` (任意), Python version (任意)
 - 出力: `<skill-dir>/assets/vX.Y.Z/.venv`
-- 依存: `uv`, `pyproject.toml`（なければ `uv init` で作成）
+- 依存: `uv`, `assets/vX.Y.Z/pyproject.toml`（version ごとに `uv init --bare` で管理）
 
 1. `switch-python.*`
 
@@ -107,9 +107,9 @@ source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
 1. `add-deps.*`
 
 - 役割: 依存追加のみ (`uv add -> uv lock -> uv sync`)
-- 入力: `workspace-dir`（必須）, package list（必須）
+- 入力: package list（必須）, `workspace-dir`（後方互換のため受け取る）
 - 出力: 指定 env の依存関係更新
-- 依存: 既存 env（`setup-*` / `switch-python.*` で作成済み）
+- 依存: 既存 env と version project（`assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`）
 
 Dry run:
 
@@ -210,10 +210,12 @@ powershell -ExecutionPolicy ByPass `
 
 ## Rules
 
-- すべての command は `pyproject.toml` がある workspace で実行する。
+- `pyproject` は version ごとに `assets/vX.Y.Z/pyproject.toml` を使う（別 version は別 project）。
+- `pyproject` の拡張子は `.toml`（`pyproject.yaml` ではない）。
 - Python env の path は必ず `<skill-dir>/assets/vX.Y.Z/.venv` に統一する。
 - `assets/` が存在しない場合は script が自動作成し、directory 不在では失敗しない。
 - `uv` command は必ず `assets/` 配下（基本は `assets/vX.Y.Z`）に `cd` してから実行する。
+- 依存関係と lockfile は version ごとに分離し、`assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` に保存する。
 - 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
 - 同じ version の env が存在する場合は再作成しない。
 - version 切替時は current env を deactivate してから activate する。

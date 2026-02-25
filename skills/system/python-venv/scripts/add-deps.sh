@@ -6,6 +6,10 @@ usage() {
 Usage:
   add-deps.sh [--dry-run] <workspace-dir> <package...>
 
+Notes:
+  <workspace-dir> is kept for compatibility, but dependency scope is
+  always the version project under <skill-dir>/assets/vX.Y.Z.
+
 Examples:
   add-deps.sh ~/work/my-app requests
   add-deps.sh ~/work/my-app requests rich pydantic
@@ -118,6 +122,7 @@ fi
 resolve_existing_venv_dir || exit 1
 PYTHON_BIN="${VENV_DIR}/bin/python"
 PYTHON_VERSION_DIR="$(dirname "${VENV_DIR}")"
+PROJECT_DIR="${PYTHON_VERSION_DIR}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
@@ -130,16 +135,16 @@ else
 fi
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo "+ test -f ${WORKSPACE_DIR}/pyproject.toml"
+  echo "+ [ -f ${PROJECT_DIR}/pyproject.toml ] || uv --directory ${PROJECT_DIR} init --bare --python ${PYTHON_BIN}"
 else
-  if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
-    echo "pyproject.toml not found in ${WORKSPACE_DIR}" >&2
-    exit 1
+  if [[ ! -f "${PROJECT_DIR}/pyproject.toml" ]]; then
+    run_cmd uv --directory "${PROJECT_DIR}" init --bare --python "${PYTHON_BIN}"
   fi
 fi
+echo "Project directory: ${PROJECT_DIR}"
 
-run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" add --python "${PYTHON_BIN}" "${PACKAGES[@]}"
-run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" lock --python "${PYTHON_BIN}"
-run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync --python "${PYTHON_BIN}"
+run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" add --python "${PYTHON_BIN}" "${PACKAGES[@]}"
+run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" lock --python "${PYTHON_BIN}"
+run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
 
 echo "Done."
