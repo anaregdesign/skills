@@ -1,6 +1,9 @@
 param(
     [string]$PythonVersion = "",
     [string]$ScriptPath = "",
+    [string]$ModuleName = "",
+    [string]$CodeBase64 = "",
+    [string]$GeneratedScriptName = "generated.py",
     [switch]$DryRun,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ScriptArgs
@@ -57,6 +60,15 @@ function Resolve-VersionFromUv {
     return "v$($first.version)"
 }
 
+function Test-IsAbsolutePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    return [System.IO.Path]::IsPathRooted($Path)
+}
+
 function Import-DotEnv {
     param(
         [Parameter(Mandatory = $true)]
@@ -106,6 +118,99 @@ function Write-DotEnv {
     ) | Set-Content -Path $EnvFile -Encoding UTF8
 }
 
+function Resolve-ExecutionMode {
+    $modeCount = 0
+    $mode = ""
+
+    if (-not [string]::IsNullOrWhiteSpace($ScriptPath)) {
+        $modeCount++
+        $mode = "script"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ModuleName)) {
+        $modeCount++
+        $mode = "module"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CodeBase64)) {
+        $modeCount++
+        $mode = "code"
+    }
+
+    if ($modeCount -eq 0) {
+        throw "Exactly one execution mode is required: -ScriptPath, -ModuleName, or -CodeBase64."
+    }
+    if ($modeCount -gt 1) {
+        throw "-ScriptPath, -ModuleName, and -CodeBase64 are mutually exclusive."
+    }
+
+    return $mode
+}
+
+function Resolve-ScriptPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InputPath
+    )
+
+    if (Test-IsAbsolutePath -Path $InputPath) {
+        return [System.IO.Path]::GetFullPath($InputPath)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $InputPath))
+}
+
+function Validate-ModuleName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ($Name -notmatch '^[A-Za-z_][A-Za-z0-9_\.]*$') {
+        throw "Invalid -ModuleName '$Name'. Use a dotted Python module path (example: markitdown)."
+    }
+}
+
+function Validate-GeneratedScriptName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        throw "-GeneratedScriptName is required when using -CodeBase64."
+    }
+
+    if ($Name.Contains("/") -or $Name.Contains("\") -or $Name.StartsWith(".") -or $Name.Contains("..")) {
+        throw "Invalid -GeneratedScriptName '$Name'. Use a safe filename under src/ (example: generated.py)."
+    }
+
+    if (-not $Name.EndsWith(".py")) {
+        throw "-GeneratedScriptName must end with .py: $Name"
+    }
+}
+
+function Decode-Base64ToFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Base64Content,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    $normalized = ($Base64Content -replace '\s', '')
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        throw "-CodeBase64 requires non-empty base64 content."
+    }
+
+    try {
+        $bytes = [Convert]::FromBase64String($normalized)
+    }
+    catch {
+        throw "Failed to decode -CodeBase64: $($_.Exception.Message)"
+    }
+
+    [System.IO.File]::WriteAllBytes($OutputPath, $bytes)
+}
+
 if (-not (Test-Path $AssetsBaseDir)) {
     New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
 }
@@ -134,15 +239,14 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv is not available. Run setup-windows.ps1 first."
 }
 
-if ([string]::IsNullOrWhiteSpace($ScriptPath)) {
-    throw "-ScriptPath is required."
-}
+$executionMode = Resolve-ExecutionMode
 
 $normalizedRequest = Resolve-NormalizedRequest -Request $PythonVersion
 $versionTag = Resolve-VersionFromUv -NormalizedRequest $normalizedRequest
 $projectDir = Join-Path $AssetsBaseDir $versionTag
 $venvDir = Join-Path $projectDir ".venv"
 $pyprojectPath = Join-Path $projectDir "pyproject.toml"
+$srcDir = Join-Path $projectDir "src"
 
 if (-not (Test-Path $projectDir)) {
     throw "Project directory not found: $projectDir. Run setup-windows.ps1 first."
@@ -154,35 +258,80 @@ if (-not (Test-Path $pyprojectPath)) {
     throw "Project metadata not found: $pyprojectPath. Run setup-windows.ps1 first."
 }
 
-$scriptPathResolved = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $ScriptPath))
-if ($ScriptPath -match '^[A-Za-z]:\\' -or $ScriptPath.StartsWith('\\')) {
-    $scriptPathResolved = [System.IO.Path]::GetFullPath($ScriptPath)
-}
-
-if (-not $scriptPathResolved.EndsWith(".py")) {
-    throw "-ScriptPath must point to a .py file: $scriptPathResolved"
-}
-
-if (-not $DryRun -and -not (Test-Path $scriptPathResolved)) {
-    throw "Script file not found: $scriptPathResolved"
-}
-
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $versionTag"
 Write-Host "Project directory: $projectDir"
-Write-Host "Script path: $scriptPathResolved"
 
-if ($DryRun) {
-    if ($ScriptArgs.Count -gt 0) {
-        Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved' $($ScriptArgs -join ' ')"
+if ($executionMode -eq "script") {
+    $scriptPathResolved = Resolve-ScriptPath -InputPath $ScriptPath
+    if (-not $scriptPathResolved.EndsWith(".py")) {
+        throw "-ScriptPath must point to a .py file: $scriptPathResolved"
     }
-    else {
-        Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved'"
+    if (-not $DryRun -and -not (Test-Path $scriptPathResolved)) {
+        throw "Script file not found: $scriptPathResolved"
     }
-    Write-Host "+ write $EnvFile"
-    exit 0
+
+    Write-Host "Execution mode: script"
+    Write-Host "Script path: $scriptPathResolved"
+
+    if ($DryRun) {
+        if ($ScriptArgs.Count -gt 0) {
+            Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved' $($ScriptArgs -join ' ')"
+        }
+        else {
+            Write-Host "+ uv --project '$projectDir' run python '$scriptPathResolved'"
+        }
+        Write-Host "+ write $EnvFile"
+        exit 0
+    }
+
+    uv --project $projectDir run python $scriptPathResolved @ScriptArgs
+}
+elseif ($executionMode -eq "module") {
+    Validate-ModuleName -Name $ModuleName
+
+    Write-Host "Execution mode: module"
+    Write-Host "Module: $ModuleName"
+
+    if ($DryRun) {
+        if ($ScriptArgs.Count -gt 0) {
+            Write-Host "+ uv --project '$projectDir' run python -m '$ModuleName' $($ScriptArgs -join ' ')"
+        }
+        else {
+            Write-Host "+ uv --project '$projectDir' run python -m '$ModuleName'"
+        }
+        Write-Host "+ write $EnvFile"
+        exit 0
+    }
+
+    uv --project $projectDir run python -m $ModuleName @ScriptArgs
+}
+else {
+    Validate-GeneratedScriptName -Name $GeneratedScriptName
+    $generatedScriptPath = Join-Path $srcDir $GeneratedScriptName
+
+    Write-Host "Execution mode: generated-code"
+    Write-Host "Generated script path: $generatedScriptPath"
+
+    if ($DryRun) {
+        Write-Host "+ write script to '$generatedScriptPath' from base64"
+        if ($ScriptArgs.Count -gt 0) {
+            Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath' $($ScriptArgs -join ' ')"
+        }
+        else {
+            Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath'"
+        }
+        Write-Host "+ write $EnvFile"
+        exit 0
+    }
+
+    if (-not (Test-Path $srcDir)) {
+        New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+    }
+
+    Decode-Base64ToFile -Base64Content $CodeBase64 -OutputPath $generatedScriptPath
+    uv --project $projectDir run python $generatedScriptPath @ScriptArgs
 }
 
-uv --project $projectDir run python $scriptPathResolved @ScriptArgs
 Write-DotEnv -VersionTag $versionTag -ProjectDir $projectDir -VenvDir $venvDir
 Write-Host "Done."

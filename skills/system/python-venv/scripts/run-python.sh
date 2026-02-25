@@ -4,11 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  run-python.sh [--dry-run] [--python <version>] --script <absolute-or-relative-path.py> [-- <script-args...>]
+  run-python.sh [--dry-run] [--python <version>] (--script <absolute-or-relative-path.py> | --module <module.name> | --code-base64 <base64>) [--name <generated.py>] [-- <script-args...>]
 
 Examples:
   run-python.sh --python 3.12 --script /absolute/path/to/task.py
   run-python.sh --script ./task.py -- --input data.json --verbose
+  run-python.sh --python 3.12 --module markitdown -- input.pptx
+  run-python.sh --python 3.12 --code-base64 cHJpbnQoIkhlbGxvIikK --name hello.py
 EOF
 }
 
@@ -106,6 +108,7 @@ resolve_version_from_uv() {
   PYTHON_VERSION_TAG="v${resolved_version}"
   PROJECT_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
   VENV_DIR="${PROJECT_DIR}/.venv"
+  SRC_DIR="${PROJECT_DIR}/src"
 
   if [[ ! -d "${PROJECT_DIR}" ]]; then
     echo "Project directory not found: ${PROJECT_DIR}" >&2
@@ -133,10 +136,55 @@ resolve_script_path() {
   RESOLVED_SCRIPT_PATH="$(cd -P . && pwd)/${path}"
 }
 
+validate_module_name() {
+  local name="$1"
+  if [[ -z "${name}" ]]; then
+    echo "--module requires a module name." >&2
+    return 1
+  fi
+  if [[ ! "${name}" =~ ^[A-Za-z_][A-Za-z0-9_\.]*$ ]]; then
+    echo "Invalid --module value: ${name}" >&2
+    echo "Use a dotted Python module path (example: markitdown)." >&2
+    return 1
+  fi
+}
+
+validate_script_name() {
+  local name="$1"
+  if [[ -z "${name}" ]]; then
+    echo "--name is required when using --code-base64." >&2
+    return 1
+  fi
+  if [[ "${name}" == */* || "${name}" == *\\* || "${name}" == .* || "${name}" == *".."* ]]; then
+    echo "Invalid --name: ${name}" >&2
+    echo "Use a safe filename under src/ (example: generated.py)." >&2
+    return 1
+  fi
+  if [[ "${name}" != *.py ]]; then
+    echo "--name must end with .py: ${name}" >&2
+    return 1
+  fi
+}
+
+decode_base64_to_file() {
+  local encoded="$1"
+  local output_path="$2"
+  if base64 --help 2>&1 | grep -q -- '--decode'; then
+    printf '%s' "${encoded}" | base64 --decode > "${output_path}"
+  else
+    printf '%s' "${encoded}" | base64 -D > "${output_path}"
+  fi
+}
+
 DRY_RUN=0
 PYTHON_REQUEST=""
 SCRIPT_PATH=""
+MODULE_NAME=""
+CODE_BASE64=""
+GENERATED_SCRIPT_NAME="generated.py"
 SCRIPT_ARGS=()
+MODE=""
+MODE_COUNT=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -159,7 +207,40 @@ while [[ $# -gt 0 ]]; do
         usage
         exit 1
       fi
+      MODE="script"
+      MODE_COUNT=$((MODE_COUNT + 1))
       SCRIPT_PATH="$2"
+      shift 2
+      ;;
+    --module)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --module" >&2
+        usage
+        exit 1
+      fi
+      MODE="module"
+      MODE_COUNT=$((MODE_COUNT + 1))
+      MODULE_NAME="$2"
+      shift 2
+      ;;
+    --code-base64)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --code-base64" >&2
+        usage
+        exit 1
+      fi
+      MODE="code"
+      MODE_COUNT=$((MODE_COUNT + 1))
+      CODE_BASE64="$2"
+      shift 2
+      ;;
+    --name)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --name" >&2
+        usage
+        exit 1
+      fi
+      GENERATED_SCRIPT_NAME="$2"
       shift 2
       ;;
     --)
@@ -199,8 +280,14 @@ if [[ -z "${PYTHON_REQUEST}" ]]; then
   exit 1
 fi
 
-if [[ -z "${SCRIPT_PATH}" ]]; then
-  echo "--script <path.py> is required." >&2
+if [[ "${MODE_COUNT}" -eq 0 ]]; then
+  echo "Exactly one execution mode is required: --script, --module, or --code-base64." >&2
+  usage
+  exit 1
+fi
+
+if [[ "${MODE_COUNT}" -gt 1 ]]; then
+  echo "--script, --module, and --code-base64 are mutually exclusive." >&2
   usage
   exit 1
 fi
@@ -212,28 +299,75 @@ fi
 
 validate_version_request "${PYTHON_REQUEST}" || exit 1
 resolve_version_from_uv || exit 1
-resolve_script_path "${SCRIPT_PATH}"
-
-if [[ "${RESOLVED_SCRIPT_PATH}" != *.py ]]; then
-  echo "--script must point to a .py file: ${RESOLVED_SCRIPT_PATH}" >&2
-  exit 1
-fi
-
-if [[ "${DRY_RUN}" -eq 0 ]] && [[ ! -f "${RESOLVED_SCRIPT_PATH}" ]]; then
-  echo "Script file not found: ${RESOLVED_SCRIPT_PATH}" >&2
-  exit 1
-fi
 
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Project directory: ${PROJECT_DIR}"
-echo "Script path: ${RESOLVED_SCRIPT_PATH}"
 
-if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
-  run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}" "${SCRIPT_ARGS[@]}"
-else
-  run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}"
-fi
+case "${MODE}" in
+  script)
+    resolve_script_path "${SCRIPT_PATH}"
+    if [[ "${RESOLVED_SCRIPT_PATH}" != *.py ]]; then
+      echo "--script must point to a .py file: ${RESOLVED_SCRIPT_PATH}" >&2
+      exit 1
+    fi
+    if [[ "${DRY_RUN}" -eq 0 ]] && [[ ! -f "${RESOLVED_SCRIPT_PATH}" ]]; then
+      echo "Script file not found: ${RESOLVED_SCRIPT_PATH}" >&2
+      exit 1
+    fi
+
+    echo "Execution mode: script"
+    echo "Script path: ${RESOLVED_SCRIPT_PATH}"
+    if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
+      run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}" "${SCRIPT_ARGS[@]}"
+    else
+      run_cmd uv --project "${PROJECT_DIR}" run python "${RESOLVED_SCRIPT_PATH}"
+    fi
+    ;;
+  module)
+    validate_module_name "${MODULE_NAME}" || exit 1
+
+    echo "Execution mode: module"
+    echo "Module: ${MODULE_NAME}"
+    if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
+      run_cmd uv --project "${PROJECT_DIR}" run python -m "${MODULE_NAME}" "${SCRIPT_ARGS[@]}"
+    else
+      run_cmd uv --project "${PROJECT_DIR}" run python -m "${MODULE_NAME}"
+    fi
+    ;;
+  code)
+    CODE_BASE64="$(printf '%s' "${CODE_BASE64}" | tr -d '\r\n\t ')"
+    if [[ -z "${CODE_BASE64}" ]]; then
+      echo "--code-base64 requires non-empty base64 content." >&2
+      exit 1
+    fi
+    validate_script_name "${GENERATED_SCRIPT_NAME}" || exit 1
+    run_cmd mkdir -p "${SRC_DIR}"
+    GENERATED_SCRIPT_PATH="${SRC_DIR}/${GENERATED_SCRIPT_NAME}"
+
+    echo "Execution mode: generated-code"
+    echo "Generated script path: ${GENERATED_SCRIPT_PATH}"
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      echo "+ write script to ${GENERATED_SCRIPT_PATH} from base64"
+    else
+      decode_base64_to_file "${CODE_BASE64}" "${GENERATED_SCRIPT_PATH}" || {
+        echo "Failed to decode --code-base64." >&2
+        exit 1
+      }
+    fi
+
+    if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
+      run_cmd uv --project "${PROJECT_DIR}" run python "${GENERATED_SCRIPT_PATH}" "${SCRIPT_ARGS[@]}"
+    else
+      run_cmd uv --project "${PROJECT_DIR}" run python "${GENERATED_SCRIPT_PATH}"
+    fi
+    ;;
+  *)
+    echo "Internal error: unknown execution mode '${MODE}'." >&2
+    exit 1
+    ;;
+esac
+
 persist_env_file
 
 echo "Done."
