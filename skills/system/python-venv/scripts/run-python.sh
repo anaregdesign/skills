@@ -4,11 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  run-python.sh [--dry-run] [--python <version>] (--script <absolute-or-relative-path.py> | --module <module.name> | --code-base64 <base64>) [--name <generated.py>] [-- <script-args...>]
+  run-python.sh [--dry-run] [--python <version>] (--script <absolute-or-relative-path.py> | --module <module.name> | --code-base64 <base64> | --code <python-code>) [--name <generated.py>] [-- <script-args...>]
 
 Examples:
   run-python.sh --python 3.12 --script /absolute/path/to/task.py
   run-python.sh --script ./task.py -- --input data.json --verbose
+  run-python.sh --python 3.12 -c "import sys; print(sys.version)"
   run-python.sh --python 3.12 --module markitdown -- input.pptx
   run-python.sh --python 3.12 --code-base64 cHJpbnQoIkhlbGxvIikK --name hello.py
 EOF
@@ -152,7 +153,7 @@ validate_module_name() {
 validate_script_name() {
   local name="$1"
   if [[ -z "${name}" ]]; then
-    echo "--name is required when using --code-base64." >&2
+    echo "--name is required when using --code-base64 or --code." >&2
     return 1
   fi
   if [[ "${name}" == */* || "${name}" == *\\* || "${name}" == .* || "${name}" == *".."* ]]; then
@@ -176,11 +177,18 @@ decode_base64_to_file() {
   fi
 }
 
+write_text_to_file() {
+  local code_text="$1"
+  local output_path="$2"
+  printf '%s\n' "${code_text}" > "${output_path}"
+}
+
 DRY_RUN=0
 PYTHON_REQUEST=""
 SCRIPT_PATH=""
 MODULE_NAME=""
 CODE_BASE64=""
+CODE_TEXT=""
 GENERATED_SCRIPT_NAME="generated.py"
 SCRIPT_ARGS=()
 MODE=""
@@ -223,13 +231,24 @@ while [[ $# -gt 0 ]]; do
       MODULE_NAME="$2"
       shift 2
       ;;
+    -c|--code)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for $1" >&2
+        usage
+        exit 1
+      fi
+      MODE="code-text"
+      MODE_COUNT=$((MODE_COUNT + 1))
+      CODE_TEXT="$2"
+      shift 2
+      ;;
     --code-base64)
       if [[ $# -lt 2 ]]; then
         echo "Missing value for --code-base64" >&2
         usage
         exit 1
       fi
-      MODE="code"
+      MODE="code-base64"
       MODE_COUNT=$((MODE_COUNT + 1))
       CODE_BASE64="$2"
       shift 2
@@ -281,13 +300,13 @@ if [[ -z "${PYTHON_REQUEST}" ]]; then
 fi
 
 if [[ "${MODE_COUNT}" -eq 0 ]]; then
-  echo "Exactly one execution mode is required: --script, --module, or --code-base64." >&2
+  echo "Exactly one execution mode is required: --script, --module, --code-base64, or --code." >&2
   usage
   exit 1
 fi
 
 if [[ "${MODE_COUNT}" -gt 1 ]]; then
-  echo "--script, --module, and --code-base64 are mutually exclusive." >&2
+  echo "--script, --module, --code-base64, and --code are mutually exclusive." >&2
   usage
   exit 1
 fi
@@ -335,7 +354,7 @@ case "${MODE}" in
       run_cmd uv --project "${PROJECT_DIR}" run python -m "${MODULE_NAME}"
     fi
     ;;
-  code)
+  code-base64)
     CODE_BASE64="$(printf '%s' "${CODE_BASE64}" | tr -d '\r\n\t ')"
     if [[ -z "${CODE_BASE64}" ]]; then
       echo "--code-base64 requires non-empty base64 content." >&2
@@ -354,6 +373,29 @@ case "${MODE}" in
         echo "Failed to decode --code-base64." >&2
         exit 1
       }
+    fi
+
+    if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then
+      run_cmd uv --project "${PROJECT_DIR}" run python "${GENERATED_SCRIPT_PATH}" "${SCRIPT_ARGS[@]}"
+    else
+      run_cmd uv --project "${PROJECT_DIR}" run python "${GENERATED_SCRIPT_PATH}"
+    fi
+    ;;
+  code-text)
+    if [[ -z "${CODE_TEXT}" ]]; then
+      echo "--code requires non-empty Python code." >&2
+      exit 1
+    fi
+    validate_script_name "${GENERATED_SCRIPT_NAME}" || exit 1
+    run_cmd mkdir -p "${SRC_DIR}"
+    GENERATED_SCRIPT_PATH="${SRC_DIR}/${GENERATED_SCRIPT_NAME}"
+
+    echo "Execution mode: generated-code"
+    echo "Generated script path: ${GENERATED_SCRIPT_PATH}"
+    if [[ "${DRY_RUN}" -eq 1 ]]; then
+      echo "+ write script to ${GENERATED_SCRIPT_PATH} from --code"
+    else
+      write_text_to_file "${CODE_TEXT}" "${GENERATED_SCRIPT_PATH}"
     fi
 
     if [[ ${#SCRIPT_ARGS[@]} -gt 0 ]]; then

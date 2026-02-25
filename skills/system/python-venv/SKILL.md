@@ -5,6 +5,11 @@ description: |
   Trigger this skill first whenever the conversation context requires Python
   script execution, package management, or dependency error handling.
   Manage per-version environments at `<skill-dir>/assets/vX.Y.Z/.venv`.
+  Supports direct module execution (`--module`) and generated-code execution
+  (`--code` / `--code-base64`) by saving scripts into
+  `<skill-dir>/assets/vX.Y.Z/src/` before running them.
+  When asked to "write and run" Python, use generated-code mode instead of
+  asking the user to create files manually.
   If switched in the same shell, plain `python` uses the selected environment.
 ---
 
@@ -88,6 +93,7 @@ Run Python in selected project env (script/module/generated code):
 # macOS / Linux
 bash scripts/run-python.sh [--python <version>] --script <abs-or-rel-path.py> [-- <script-args...>]
 bash scripts/run-python.sh [--python <version>] --module <module.name> [-- <module-args...>]
+bash scripts/run-python.sh [--python <version>] --code "<python-code>" [--name <generated.py>] [-- <script-args...>]
 bash scripts/run-python.sh [--python <version>] --code-base64 <base64-python-code> [--name <generated.py>] [-- <script-args...>]
 ```
 
@@ -96,7 +102,7 @@ bash scripts/run-python.sh [--python <version>] --code-base64 <base64-python-cod
 powershell -ExecutionPolicy ByPass `
   -File scripts/run-python.ps1 `
   [-PythonVersion <version>] `
-  (-ScriptPath <abs-or-rel-path.py> | -ModuleName <module.name> | -CodeBase64 <base64-python-code>) `
+  (-ScriptPath <abs-or-rel-path.py> | -ModuleName <module.name> | -Code <python-code> | -CodeBase64 <base64-python-code>) `
   [-GeneratedScriptName <generated.py>] `
   [-DryRun] `
   [-- <script-args...>]
@@ -157,7 +163,7 @@ powershell -ExecutionPolicy ByPass `
 ### run-python.*
 
 - 役割: 対象 version project の env で Python を実行する（`.py` 実行 / `-m module` 実行 / base64コード保存実行）
-- 入力: `--script <path.py>` または `--module <module.name>` または `--code-base64 <base64>`
+- 入力: `--script <path.py>` または `--module <module.name>` または `--code <python-code>` または `--code-base64 <base64>`
 - 出力: 対象 mode で Python が実行され、必要時は `assets/vX.Y.Z/src/<name>.py` が生成される
 - 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
 
@@ -177,6 +183,7 @@ bash scripts/switch-python.sh --dry-run
 bash scripts/add-deps.sh --dry-run --python 3.12 requests rich
 bash scripts/run-python.sh --dry-run --python 3.12 --script /abs/path/to/task.py -- --example arg
 bash scripts/run-python.sh --dry-run --python 3.12 --module markitdown -- /abs/path/to/input.pptx
+bash scripts/run-python.sh --dry-run --python 3.12 --code "print('hello')" --name hello.py
 bash scripts/run-python.sh --dry-run --python 3.12 --code-base64 cHJpbnQoIkhlbGxvIikK --name hello.py
 bash scripts/remove-python.sh --dry-run
 ```
@@ -201,6 +208,12 @@ powershell -ExecutionPolicy ByPass `
   -ModuleName markitdown `
   -DryRun `
   -- C:\abs\path\to\input.pptx
+powershell -ExecutionPolicy ByPass `
+  -File scripts/run-python.ps1 `
+  [-PythonVersion 3.12] `
+  -Code "print('hello')" `
+  -GeneratedScriptName hello.py `
+  -DryRun
 powershell -ExecutionPolicy ByPass `
   -File scripts/run-python.ps1 `
   [-PythonVersion 3.12] `
@@ -252,6 +265,7 @@ powershell -ExecutionPolicy ByPass `
 実行ルール:
 - `.py` 実行時は `--script` を使い、配置済み path をそのまま使う（絶対 path 推奨）
 - Python module実行時は `--module` を使う（`python -m` 相当）
+- ワンライナー/短いコードは `--code`（PowerShellは `-Code`）を使う
 - 生成コード実行時は `--code-base64` を使う（必要なら `--name` でファイル名を指定）
 
 同一 shell で `python` 実行する場合（Step 2 を source 済み）:
@@ -266,6 +280,7 @@ python /abs/path/to/script.py
 ```bash
 bash scripts/run-python.sh --python 3.12.10 --script /abs/path/to/script.py -- --arg1 value1
 bash scripts/run-python.sh --python 3.12.10 --module markitdown -- /abs/path/to/slides.pptx
+bash scripts/run-python.sh --python 3.12.10 --code "print('hello world')" --name hello_world.py
 bash scripts/run-python.sh --python 3.12.10 --code-base64 cHJpbnQoImhlbGxvIHdvcmxkIikK --name hello_world.py
 ```
 
@@ -283,11 +298,17 @@ powershell -ExecutionPolicy ByPass `
 powershell -ExecutionPolicy ByPass `
   -File scripts/run-python.ps1 `
   -PythonVersion 3.12.10 `
+  -Code "print('hello world')" `
+  -GeneratedScriptName hello_world.py
+powershell -ExecutionPolicy ByPass `
+  -File scripts/run-python.ps1 `
+  -PythonVersion 3.12.10 `
   -CodeBase64 cHJpbnQoImhlbGxvIHdvcmxkIikK `
   -GeneratedScriptName hello_world.py
 ```
 
 コンテキスト内で生成された script text を実行する場合:
+- 1行程度のコードなら `run-python.*` の `--code`（PowerShellは `-Code`）を使う
 - `run-python.*` の `--code-base64`（PowerShellは `-CodeBase64`）で直接実行できる
 - 生成ファイル名を固定したい場合のみ `--name` / `-GeneratedScriptName` を使う
 
@@ -308,7 +329,8 @@ powershell -ExecutionPolicy ByPass `
 - 非 source の `switch-python.*` は current shell を変更しない。
 - current shell で通常 `python` を使いたい場合は `switch-python.*` を source / dot-source で実行する。
 - 非対話実行では `run-python.*` により `uv --project <project> run python ...` を使って対象 project env を明示する。
-- `run-python.*` の実行モード（script/module/code-base64）は1つだけ指定する。
+- `run-python.*` の実行モード（script/module/code/code-base64）は1つだけ指定する。
+- `run-python.*` でインライン実行が必要な場合は `--code` / `--code-base64` を使い、`--script -c` や `--script -` は使わない。
 - `skill_run_script` の `path` には `scripts/<file>` だけを渡す（`../` を含めない）。外部 script path は `args` で渡す。
 - 実行時の path は絶対 path を優先する。
 - `add-deps.*` はこの skill が作成した env（`<skill-dir>/assets/vX.Y.Z/.venv`）だけを対象にする。

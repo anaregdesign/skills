@@ -2,6 +2,7 @@ param(
     [string]$PythonVersion = "",
     [string]$ScriptPath = "",
     [string]$ModuleName = "",
+    [string]$Code = "",
     [string]$CodeBase64 = "",
     [string]$GeneratedScriptName = "generated.py",
     [switch]$DryRun,
@@ -130,16 +131,20 @@ function Resolve-ExecutionMode {
         $modeCount++
         $mode = "module"
     }
+    if (-not [string]::IsNullOrWhiteSpace($Code)) {
+        $modeCount++
+        $mode = "code-text"
+    }
     if (-not [string]::IsNullOrWhiteSpace($CodeBase64)) {
         $modeCount++
-        $mode = "code"
+        $mode = "code-base64"
     }
 
     if ($modeCount -eq 0) {
-        throw "Exactly one execution mode is required: -ScriptPath, -ModuleName, or -CodeBase64."
+        throw "Exactly one execution mode is required: -ScriptPath, -ModuleName, -CodeBase64, or -Code."
     }
     if ($modeCount -gt 1) {
-        throw "-ScriptPath, -ModuleName, and -CodeBase64 are mutually exclusive."
+        throw "-ScriptPath, -ModuleName, -CodeBase64, and -Code are mutually exclusive."
     }
 
     return $mode
@@ -176,7 +181,7 @@ function Validate-GeneratedScriptName {
     )
 
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        throw "-GeneratedScriptName is required when using -CodeBase64."
+        throw "-GeneratedScriptName is required when using -CodeBase64 or -Code."
     }
 
     if ($Name.Contains("/") -or $Name.Contains("\") -or $Name.StartsWith(".") -or $Name.Contains("..")) {
@@ -186,6 +191,17 @@ function Validate-GeneratedScriptName {
     if (-not $Name.EndsWith(".py")) {
         throw "-GeneratedScriptName must end with .py: $Name"
     }
+}
+
+function Write-TextToFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    [System.IO.File]::WriteAllText($OutputPath, $Text, [System.Text.Encoding]::UTF8)
 }
 
 function Decode-Base64ToFile {
@@ -306,7 +322,7 @@ elseif ($executionMode -eq "module") {
 
     uv --project $projectDir run python -m $ModuleName @ScriptArgs
 }
-else {
+elseif ($executionMode -eq "code-base64") {
     Validate-GeneratedScriptName -Name $GeneratedScriptName
     $generatedScriptPath = Join-Path $srcDir $GeneratedScriptName
 
@@ -330,6 +346,36 @@ else {
     }
 
     Decode-Base64ToFile -Base64Content $CodeBase64 -OutputPath $generatedScriptPath
+    uv --project $projectDir run python $generatedScriptPath @ScriptArgs
+}
+else {
+    if ([string]::IsNullOrWhiteSpace($Code)) {
+        throw "-Code requires non-empty Python code."
+    }
+
+    Validate-GeneratedScriptName -Name $GeneratedScriptName
+    $generatedScriptPath = Join-Path $srcDir $GeneratedScriptName
+
+    Write-Host "Execution mode: generated-code"
+    Write-Host "Generated script path: $generatedScriptPath"
+
+    if ($DryRun) {
+        Write-Host "+ write script to '$generatedScriptPath' from -Code"
+        if ($ScriptArgs.Count -gt 0) {
+            Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath' $($ScriptArgs -join ' ')"
+        }
+        else {
+            Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath'"
+        }
+        Write-Host "+ write $EnvFile"
+        exit 0
+    }
+
+    if (-not (Test-Path $srcDir)) {
+        New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+    }
+
+    Write-TextToFile -Text $Code -OutputPath $generatedScriptPath
     uv --project $projectDir run python $generatedScriptPath @ScriptArgs
 }
 
