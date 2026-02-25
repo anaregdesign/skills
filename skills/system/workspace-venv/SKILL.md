@@ -18,40 +18,40 @@ description: |
 
 # Workspace Venv
 
-`uv` でワークスペース単位の
-Python 仮想環境を作成し、依存関係を最小コマンドで管理する。
+`uv` で workspace 単位の
+Python 仮想環境を作成し、依存関係を minimal command で管理する。
 
 Python の実行環境が必要な依頼では、
-このスキルを最初に実行する。
+この skill を最初に実行する。
 
 ## Trigger Conditions
 
 - Python 実行環境の準備を求められたとき
 - `venv` / `.venv` の作成を求められたとき
-- Python インタープリタ設定を求められたとき
-- パッケージ導入準備（依存解決）を求められたとき
-- `ModuleNotFoundError` など依存不足エラーが出ているとき
+- Python interpreter 設定を求められたとき
+- package 導入準備（依存解決）を求められたとき
+- `ModuleNotFoundError` など依存不足 error が出ているとき
 
 ## Scripts
 
-初期セットアップ用スクリプト:
+Initial setup script:
 
 ```bash
 # macOS
-bash scripts/setup-macos.sh <workspace-dir>
+bash scripts/setup-macos.sh [workspace-dir]
 
 # Linux
-bash scripts/setup-linux.sh <workspace-dir>
+bash scripts/setup-linux.sh [workspace-dir]
 ```
 
 ```powershell
 # Windows PowerShell
 powershell -ExecutionPolicy ByPass `
   -File scripts/setup-windows.ps1 `
-  -WorkspaceDir <workspace-dir>
+  [-WorkspaceDir <workspace-dir>]
 ```
 
-後から不足依存だけを追加するスクリプト:
+Later dependency-only add script:
 
 ```bash
 # macOS / Linux
@@ -66,18 +66,18 @@ powershell -ExecutionPolicy ByPass `
   -Packages <pkg1>,<pkg2>
 ```
 
-ドライラン:
+Dry run:
 
 ```bash
-bash scripts/setup-macos.sh --dry-run <workspace-dir>
-bash scripts/setup-linux.sh --dry-run <workspace-dir>
+bash scripts/setup-macos.sh --dry-run [workspace-dir]
+bash scripts/setup-linux.sh --dry-run [workspace-dir]
 bash scripts/add-deps.sh --dry-run <workspace-dir> requests rich
 ```
 
 ```powershell
 powershell -ExecutionPolicy ByPass `
   -File scripts/setup-windows.ps1 `
-  -WorkspaceDir <workspace-dir> `
+  [-WorkspaceDir <workspace-dir>] `
   -DryRun
 powershell -ExecutionPolicy ByPass `
   -File scripts/add-deps.ps1 `
@@ -88,27 +88,17 @@ powershell -ExecutionPolicy ByPass `
 
 ## Workflow
 
-1. 作成するディレクトリを選ぶ
+1. setup 時の workspace を決める
 
-```bash
-# macOS / Linux
-mkdir -p <workspace-dir>
-cd <workspace-dir>
-```
+`setup-*` script は `workspace-dir` 未指定時に
+次の順で自動選択する。
 
-```powershell
-# Windows PowerShell
-New-Item -ItemType Directory -Path <workspace-dir> -Force
-Set-Location <workspace-dir>
-```
+- 現在 directory（`pyproject.toml` がある場合）
+- Git root（Git 管理下の場合）
+- 現在 directory
 
-```cmd
-:: Windows cmd
-mkdir <workspace-dir>
-cd <workspace-dir>
-```
-
-必要なら `uv init` を実行して `pyproject.toml` を作成する。
+自動判定できない場合のみ、user 入力で path を受け取る。
+実行時に `Workspace directory: <path>` を表示する。
 
 1. `uv` が使えるか確認する
 
@@ -116,7 +106,7 @@ cd <workspace-dir>
 uv --version
 ```
 
-1. `uv` が使えない場合のみインストールする
+1. `uv` が使えない場合のみ install する
 
 ```bash
 # macOS / Linux
@@ -129,7 +119,7 @@ powershell -ExecutionPolicy ByPass -c `
   "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-インストール後はシェルを再起動して
+install 後は shell を再起動して
 `uv --version` を実行する。
 
 1. `uv` で最新 Python 3 系の仮想環境を作成する
@@ -155,8 +145,8 @@ source .venv/bin/activate
 .venv\Scripts\activate.bat
 ```
 
-1. 後から不足ライブラリが見つかったら
-   依存追加スクリプトを使う
+1. 後から不足 library が見つかったら
+   依存追加 script を使う
 
 ```bash
 bash scripts/add-deps.sh <workspace-dir> <pkg1> [pkg2...]
@@ -171,12 +161,14 @@ powershell -ExecutionPolicy ByPass `
 
 ## Rules
 
-- すべてのコマンドは `pyproject.toml` がある
-  ワークスペース直下で実行する。
+- すべての command は `pyproject.toml` がある
+  workspace 直下で実行する。
 - 依存追加は `pip install` ではなく `uv add` を優先する。
 - 環境再現時は `uv sync` を実行してから
-  アクティベートする。
-- スクリプトは最初に `uv --version` で確認し、
-  `uv` がない場合のみインストールする。
+  activate する。
+- script は最初に `uv --version` で確認し、
+  `uv` がない場合のみ install する。
+- setup 時の directory は自動選択し、
+  選択した path を必ず表示する。
 - 初期構築は `setup-*`、
   後追い依存追加は `add-deps.*` を使い分ける。
