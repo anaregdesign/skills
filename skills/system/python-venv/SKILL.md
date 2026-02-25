@@ -236,19 +236,10 @@ powershell -ExecutionPolicy ByPass `
 
 ## Rules
 
-- `pyproject` は version ごとに `assets/vX.Y.Z/pyproject.toml` を使う（別 version は別 project）。
-- `pyproject` の拡張子は `.toml`（`pyproject.yaml` ではない）。
 - Python env の path は必ず `<skill-dir>/assets/vX.Y.Z/.venv` に統一する。
-- `assets/` が存在しない場合は script が自動作成し、directory 不在では失敗しない。
-- `uv` command は必ず `assets/` 配下（基本は `assets/vX.Y.Z`）で実行する。
-- 依存関係と lockfile は version ごとに分離する。
-- `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` に保存する。
-- 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
-- 同じ version の env が存在する場合は再作成しない。
-- version 切替時は current env を deactivate してから activate する。
-- PowerShell の version 切替は dot-source で実行する。
-- dependency 追加は `pip install` ではなく `uv add` を優先する。
+- version ごとに project と依存を分離する。
+- `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` で管理する。
+- setup/switch/add/remove はこの skill の scripts を使う。
 - `add-deps.*` はこの skill が作成した env（`<skill-dir>/assets/vX.Y.Z/.venv`）だけを対象にする。
 - `remove-python.*` は指定した `assets/vX.Y.Z` だけを削除対象にする。
 - active な env は削除しない（先に deactivate してから削除する）。
-- 後方互換や fallback は実装しない。最新の運用フローだけをサポートする。
