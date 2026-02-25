@@ -6,10 +6,12 @@ description: |
   script execution, package management, or dependency error handling.
   Manage per-version environments at `<skill-dir>/assets/vX.Y.Z/.venv`.
   Supports direct module execution (`--module`) and generated-code execution
-  (`--code` / `--code-base64`) by saving scripts into
+  (`--code` / `--code-base64` / `--code-chunk`) by saving scripts into
   `<skill-dir>/assets/vX.Y.Z/src/` before running them.
   When asked to "write and run" Python, use generated-code mode instead of
   asking the user to create files manually.
+  For MCP `skill_run_script`, one argument may be capped (for example 512 chars),
+  so use repeated `--code-chunk` for longer scripts.
   If switched in the same shell, plain `python` uses the selected environment.
 ---
 
@@ -95,6 +97,7 @@ bash scripts/run-python.sh [--python <version>] --script <abs-or-rel-path.py> [-
 bash scripts/run-python.sh [--python <version>] --module <module.name> [-- <module-args...>]
 bash scripts/run-python.sh [--python <version>] --code "<python-code>" [--name <generated.py>] [-- <script-args...>]
 bash scripts/run-python.sh [--python <version>] --code-base64 <base64-python-code> [--name <generated.py>] [-- <script-args...>]
+bash scripts/run-python.sh [--python <version>] --code-chunk "<part1>" --code-chunk "<part2>" [--name <generated.py>] [-- <script-args...>]
 ```
 
 ```powershell
@@ -102,7 +105,7 @@ bash scripts/run-python.sh [--python <version>] --code-base64 <base64-python-cod
 powershell -ExecutionPolicy ByPass `
   -File scripts/run-python.ps1 `
   [-PythonVersion <version>] `
-  (-ScriptPath <abs-or-rel-path.py> | -ModuleName <module.name> | -Code <python-code> | -CodeBase64 <base64-python-code>) `
+  (-ScriptPath <abs-or-rel-path.py> | -ModuleName <module.name> | -Code <python-code> | -CodeBase64 <base64-python-code> | -CodeChunk <part>) `
   [-GeneratedScriptName <generated.py>] `
   [-DryRun] `
   [-- <script-args...>]
@@ -163,7 +166,7 @@ powershell -ExecutionPolicy ByPass `
 ### run-python.*
 
 - 役割: 対象 version project の env で Python を実行する（`.py` 実行 / `-m module` 実行 / base64コード保存実行）
-- 入力: `--script <path.py>` または `--module <module.name>` または `--code <python-code>` または `--code-base64 <base64>`
+- 入力: `--script <path.py>` または `--module <module.name>` または `--code <python-code>` または `--code-base64 <base64>` または `--code-chunk <part>`（複数回指定可）
 - 出力: 対象 mode で Python が実行され、必要時は `assets/vX.Y.Z/src/<name>.py` が生成される
 - 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
 
@@ -185,6 +188,7 @@ bash scripts/run-python.sh --dry-run --python 3.12 --script /abs/path/to/task.py
 bash scripts/run-python.sh --dry-run --python 3.12 --module markitdown -- /abs/path/to/input.pptx
 bash scripts/run-python.sh --dry-run --python 3.12 --code "print('hello')" --name hello.py
 bash scripts/run-python.sh --dry-run --python 3.12 --code-base64 cHJpbnQoIkhlbGxvIikK --name hello.py
+bash scripts/run-python.sh --dry-run --python 3.12 --code-chunk "print('hello')" --code-chunk "\nprint('world')" --name hello.py
 bash scripts/remove-python.sh --dry-run
 ```
 
@@ -218,6 +222,13 @@ powershell -ExecutionPolicy ByPass `
   -File scripts/run-python.ps1 `
   [-PythonVersion 3.12] `
   -CodeBase64 cHJpbnQoIkhlbGxvIikK `
+  -GeneratedScriptName hello.py `
+  -DryRun
+powershell -ExecutionPolicy ByPass `
+  -File scripts/run-python.ps1 `
+  [-PythonVersion 3.12] `
+  -CodeChunk "print('hello')" `
+  -CodeChunk "`nprint('world')" `
   -GeneratedScriptName hello.py `
   -DryRun
 powershell -ExecutionPolicy ByPass `
@@ -267,6 +278,7 @@ powershell -ExecutionPolicy ByPass `
 - Python module実行時は `--module` を使う（`python -m` 相当）
 - ワンライナー/短いコードは `--code`（PowerShellは `-Code`）を使う
 - 生成コード実行時は `--code-base64` を使う（必要なら `--name` でファイル名を指定）
+- 長いコードでMCP引数長制限に当たる場合は `--code-chunk`（PowerShellは `-CodeChunk`）を複数回使う
 
 同一 shell で `python` 実行する場合（Step 2 を source 済み）:
 
@@ -282,6 +294,7 @@ bash scripts/run-python.sh --python 3.12.10 --script /abs/path/to/script.py -- -
 bash scripts/run-python.sh --python 3.12.10 --module markitdown -- /abs/path/to/slides.pptx
 bash scripts/run-python.sh --python 3.12.10 --code "print('hello world')" --name hello_world.py
 bash scripts/run-python.sh --python 3.12.10 --code-base64 cHJpbnQoImhlbGxvIHdvcmxkIikK --name hello_world.py
+bash scripts/run-python.sh --python 3.12.10 --code-chunk "import sys\n" --code-chunk "print(sys.version)\n" --name hello_world.py
 ```
 
 ```powershell
@@ -305,11 +318,18 @@ powershell -ExecutionPolicy ByPass `
   -PythonVersion 3.12.10 `
   -CodeBase64 cHJpbnQoImhlbGxvIHdvcmxkIikK `
   -GeneratedScriptName hello_world.py
+powershell -ExecutionPolicy ByPass `
+  -File scripts/run-python.ps1 `
+  -PythonVersion 3.12.10 `
+  -CodeChunk "import sys`n" `
+  -CodeChunk "print(sys.version)`n" `
+  -GeneratedScriptName hello_world.py
 ```
 
 コンテキスト内で生成された script text を実行する場合:
 - 1行程度のコードなら `run-python.*` の `--code`（PowerShellは `-Code`）を使う
 - `run-python.*` の `--code-base64`（PowerShellは `-CodeBase64`）で直接実行できる
+- 長文コードは `run-python.*` の `--code-chunk`（PowerShellは `-CodeChunk`）を複数回指定して保存してから実行する
 - 生成ファイル名を固定したい場合のみ `--name` / `-GeneratedScriptName` を使う
 
 ### Step 5: 環境破損時は `remove-python.*` の後に `setup-*` で再作成し、必要なら `switch-python.*` で切替える
@@ -329,8 +349,10 @@ powershell -ExecutionPolicy ByPass `
 - 非 source の `switch-python.*` は current shell を変更しない。
 - current shell で通常 `python` を使いたい場合は `switch-python.*` を source / dot-source で実行する。
 - 非対話実行では `run-python.*` により `uv --project <project> run python ...` を使って対象 project env を明示する。
-- `run-python.*` の実行モード（script/module/code/code-base64）は1つだけ指定する。
+- `run-python.*` の実行モード（script/module/code/code-base64/code-chunk）は1つだけ指定する。
 - `run-python.*` でインライン実行が必要な場合は `--code` / `--code-base64` を使い、`--script -c` や `--script -` は使わない。
+- MCPの `skill_run_script` では1引数の長さ制限に注意し、長いコードは `--code-chunk` で分割して渡す。
+- 生成コードは必ず `assets/vX.Y.Z/src/<name>.py` に保存してから実行する（直接 `--script -c` 方式は使わない）。
 - `skill_run_script` の `path` には `scripts/<file>` だけを渡す（`../` を含めない）。外部 script path は `args` で渡す。
 - 実行時の path は絶対 path を優先する。
 - `add-deps.*` はこの skill が作成した env（`<skill-dir>/assets/vX.Y.Z/.venv`）だけを対象にする。

@@ -3,6 +3,7 @@ param(
     [string]$ScriptPath = "",
     [string]$ModuleName = "",
     [string]$Code = "",
+    [string[]]$CodeChunk = @(),
     [string]$CodeBase64 = "",
     [string]$GeneratedScriptName = "generated.py",
     [switch]$DryRun,
@@ -135,16 +136,20 @@ function Resolve-ExecutionMode {
         $modeCount++
         $mode = "code-text"
     }
+    if ($CodeChunk.Count -gt 0) {
+        $modeCount++
+        $mode = "code-chunks"
+    }
     if (-not [string]::IsNullOrWhiteSpace($CodeBase64)) {
         $modeCount++
         $mode = "code-base64"
     }
 
     if ($modeCount -eq 0) {
-        throw "Exactly one execution mode is required: -ScriptPath, -ModuleName, -CodeBase64, or -Code."
+        throw "Exactly one execution mode is required: -ScriptPath, -ModuleName, -CodeBase64, -Code, or -CodeChunk."
     }
     if ($modeCount -gt 1) {
-        throw "-ScriptPath, -ModuleName, -CodeBase64, and -Code are mutually exclusive."
+        throw "-ScriptPath, -ModuleName, -CodeBase64, -Code, and -CodeChunk are mutually exclusive."
     }
 
     return $mode
@@ -181,7 +186,7 @@ function Validate-GeneratedScriptName {
     )
 
     if ([string]::IsNullOrWhiteSpace($Name)) {
-        throw "-GeneratedScriptName is required when using -CodeBase64 or -Code."
+        throw "-GeneratedScriptName is required when using -CodeBase64, -Code, or -CodeChunk."
     }
 
     if ($Name.Contains("/") -or $Name.Contains("\") -or $Name.StartsWith(".") -or $Name.Contains("..")) {
@@ -202,6 +207,15 @@ function Write-TextToFile {
     )
 
     [System.IO.File]::WriteAllText($OutputPath, $Text, [System.Text.Encoding]::UTF8)
+}
+
+function Join-CodeChunks {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Chunks
+    )
+
+    return ($Chunks -join "")
 }
 
 function Decode-Base64ToFile {
@@ -349,6 +363,42 @@ elseif ($executionMode -eq "code-base64") {
     uv --project $projectDir run python $generatedScriptPath @ScriptArgs
 }
 else {
+    if ($executionMode -eq "code-chunks") {
+        $joined = Join-CodeChunks -Chunks $CodeChunk
+        if ([string]::IsNullOrWhiteSpace($joined)) {
+            throw "-CodeChunk requires at least one non-empty chunk."
+        }
+
+        Validate-GeneratedScriptName -Name $GeneratedScriptName
+        $generatedScriptPath = Join-Path $srcDir $GeneratedScriptName
+
+        Write-Host "Execution mode: generated-code"
+        Write-Host "Generated script path: $generatedScriptPath"
+        Write-Host "Chunk count: $($CodeChunk.Count)"
+
+        if ($DryRun) {
+            Write-Host "+ write script to '$generatedScriptPath' from -CodeChunk list"
+            if ($ScriptArgs.Count -gt 0) {
+                Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath' $($ScriptArgs -join ' ')"
+            }
+            else {
+                Write-Host "+ uv --project '$projectDir' run python '$generatedScriptPath'"
+            }
+            Write-Host "+ write $EnvFile"
+            exit 0
+        }
+
+        if (-not (Test-Path $srcDir)) {
+            New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
+        }
+
+        Write-TextToFile -Text $joined -OutputPath $generatedScriptPath
+        uv --project $projectDir run python $generatedScriptPath @ScriptArgs
+        Write-DotEnv -VersionTag $versionTag -ProjectDir $projectDir -VenvDir $venvDir
+        Write-Host "Done."
+        exit 0
+    }
+
     if ([string]::IsNullOrWhiteSpace($Code)) {
         throw "-Code requires non-empty Python code."
     }
