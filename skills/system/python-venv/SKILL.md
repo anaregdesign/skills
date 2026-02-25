@@ -66,14 +66,19 @@ powershell -ExecutionPolicy ByPass `
 Version switch script:
 
 ```bash
-# macOS / Linux (must run with source)
+# macOS / Linux
 source scripts/switch-python.sh [--python <version>]
+bash scripts/switch-python.sh [--python <version>]
 source scripts/switch-python.sh --dry-run [--python <version>]
 ```
 
 ```powershell
-# Windows PowerShell (must run with dot-source)
+# Windows PowerShell
 . .\scripts\switch-python.ps1 `
+  [-PythonVersion <version>] `
+  [-DryRun]
+powershell -ExecutionPolicy ByPass `
+  -File scripts/switch-python.ps1 `
   [-PythonVersion <version>] `
   [-DryRun]
 ```
@@ -118,8 +123,11 @@ powershell -ExecutionPolicy ByPass `
 
 - 役割: 既存の指定 version env を `deactivate -> activate` で切替える
 - 入力: Python version（任意。未指定時は `assets/.env` の `PYTHON_VENV_ACTIVE_VERSION`）
-- 出力: current shell の active env が指定 version に切替済み、`assets/vX.Y.Z/src/`
-- 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv`。Bash は `source`、PowerShell は dot-source 必須
+- 出力:
+  - `source` / dot-source 実行時: current shell の active env が指定 version に切替済み
+  - 非 source 実行時: current shell は変更せず `assets/.env` の active 情報を更新
+  - `assets/vX.Y.Z/src/` が利用可能
+- 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv`
 
 ### add-deps.*
 
@@ -273,6 +281,7 @@ powershell -ExecutionPolicy ByPass `
 - `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` で管理する。
 - setup/switch/add/remove はこの skill の scripts を使う。
 - `setup-*` は環境作成/同期のみ、`switch-python.*` は切替のみ、`add-deps.*` は依存追加のみ、`remove-python.*` は削除のみを担当する。
+- `switch-python.*` を非 source 実行した場合は `assets/.env` の active 更新のみ行い、現在 shell の `python` は切り替わらない。
 - setup/switch/add/remove 実行時に cwd を変更しない。
 - 重要な環境変数は `assets/.env` に永続化し、各 script は `assets/.env` を参照する。
 - 生成 script は必ず `assets/vX.Y.Z/src/` に配置する。

@@ -17,6 +17,7 @@ usage() {
   cat <<'EOF'
 Usage:
   source switch-python.sh [--python <version>]
+  bash switch-python.sh [--python <version>]
   source switch-python.sh --python 3.12
   source switch-python.sh --python 3.12.10
 
@@ -215,10 +216,9 @@ if [[ -z "${PYTHON_REQUEST}" ]]; then
   exit_with_code 1
 fi
 
-if [[ "${IS_SOURCED}" -ne 1 && "${DRY_RUN}" -ne 1 ]]; then
-  echo "Run this script with source to apply deactivate/activate in current shell." >&2
-  echo "Example: source scripts/switch-python.sh --python ${PYTHON_REQUEST}" >&2
-  exit_with_code 1
+NON_SOURCE_MODE=0
+if [[ "${IS_SOURCED}" -ne 1 ]]; then
+  NON_SOURCE_MODE=1
 fi
 
 if ! command -v uv >/dev/null 2>&1; then
@@ -236,6 +236,16 @@ echo "Venv path: ${VENV_DIR}"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ deactivate (if active)"
   echo "+ source ${ACTIVATE_SCRIPT}"
+  echo "+ write ${ENV_FILE}"
+  exit_with_code 0
+fi
+
+if [[ "${NON_SOURCE_MODE}" -eq 1 ]]; then
+  persist_env_file
+  echo "Saved active version to ${ENV_FILE}."
+  echo "Note: non-sourced execution cannot modify current shell."
+  echo "If you need immediate shell activation, run:"
+  echo "  source scripts/switch-python.sh --python ${PYTHON_REQUEST}"
   exit_with_code 0
 fi
 

@@ -104,11 +104,6 @@ function Write-DotEnv {
 }
 
 $isDotSourced = $MyInvocation.InvocationName -eq "."
-if (-not $isDotSourced -and -not $DryRun) {
-    Write-Error "Run this script with dot-sourcing to apply deactivate/activate in current shell."
-    Write-Host "Example: . .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
-    exit 1
-}
 
 if (-not (Test-Path $AssetsBaseDir)) {
     New-Item -ItemType Directory -Path $AssetsBaseDir -Force | Out-Null
@@ -170,6 +165,15 @@ if ($DryRun) {
     Write-Host "+ deactivate (if active)"
     Write-Host "+ . '$activateScript'"
     Write-Host "+ write $EnvFile"
+    exit 0
+}
+
+if (-not $isDotSourced) {
+    Write-DotEnv -VersionTag $versionTag -ProjectDir $versionDir -VenvDir $venvDir
+    Write-Host "Saved active version to $EnvFile."
+    Write-Host "Note: non dot-source execution cannot modify current shell."
+    Write-Host "If you need immediate shell activation, run:"
+    Write-Host ". .\scripts\switch-python.ps1 -PythonVersion $PythonVersion"
     exit 0
 }
 
