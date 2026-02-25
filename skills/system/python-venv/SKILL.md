@@ -11,7 +11,7 @@ description: |
   - User reports dependency/runtime errors (for example ModuleNotFoundError).
   Execute cross-platform workspace bootstrap with uv for macOS,
   Linux, and Windows. Always place environments at
-  `<skill-dir>/venv/vX.Y.Z/.venv`.
+  `<skill-dir>/assets/vX.Y.Z/.venv`.
   If a different Python version is requested, create that version's
   environment, then deactivate the current environment and activate the
   requested one.
@@ -87,7 +87,7 @@ source scripts/switch-python.sh --python <version> [--workspace <workspace-dir>]
 
 - 役割: `uv` の確認/導入、workspace 準備、指定 Python の env 作成/同期
 - 入力: `workspace-dir` (任意), Python version (任意)
-- 出力: `<skill-dir>/venv/vX.Y.Z/.venv`
+- 出力: `<skill-dir>/assets/vX.Y.Z/.venv`
 - 依存: `uv`, `pyproject.toml`（なければ `uv init` で作成）
 
 1. `switch-python.*`
@@ -166,14 +166,14 @@ powershell -ExecutionPolicy ByPass -c `
 
 作成先は必ず次の固定パスにする。
 
-- `<skill-dir>/venv/vX.Y.Z/.venv`
+- `<skill-dir>/assets/vX.Y.Z/.venv`
 
 要求バージョンが既存 env にない場合は新規作成する。
 同じ version が既にある場合は再作成せずに再利用する。
 
 ```bash
 uv venv --python <resolved-python> \
-  <skill-dir>/venv/vX.Y.Z/.venv
+  <skill-dir>/assets/vX.Y.Z/.venv
 ```
 
 1. 現在 env を deactivate して要求バージョンを activate する
@@ -204,7 +204,8 @@ powershell -ExecutionPolicy ByPass `
 ## Rules
 
 - すべての command は `pyproject.toml` がある workspace で実行する。
-- Python env の path は必ず `<skill-dir>/venv/vX.Y.Z/.venv` に統一する。
+- Python env の path は必ず `<skill-dir>/assets/vX.Y.Z/.venv` に統一する。
+- `assets/` が存在しない場合は script が自動作成し、directory 不在では失敗しない。
 - 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
 - 同じ version の env が存在する場合は再作成しない。
 - version 切替時は current env を deactivate してから activate する。

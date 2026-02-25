@@ -200,7 +200,7 @@ fi
 
 resolve_python_spec || exit 1
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
-VENV_DIR="${SKILL_DIR}/venv/${PYTHON_VERSION_TAG}/.venv"
+VENV_DIR="${SKILL_DIR}/assets/${PYTHON_VERSION_TAG}/.venv"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
@@ -208,12 +208,12 @@ echo "Venv path: ${VENV_DIR}"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   printf '+ mkdir -p %q\n' "${WORKSPACE_DIR}"
   printf '+ cd %q\n' "${WORKSPACE_DIR}"
-  echo "+ [ -f pyproject.toml ] || uv init"
+  echo "+ [ -f pyproject.toml ] || uv init --python ${PYTHON_BIN}"
 else
   mkdir -p "${WORKSPACE_DIR}"
   cd "${WORKSPACE_DIR}"
   if [[ ! -f pyproject.toml ]]; then
-    run_cmd uv init
+    run_cmd uv init --python "${PYTHON_BIN}"
   fi
 fi
 
@@ -227,7 +227,7 @@ else
     run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
   fi
 fi
-run_cmd env UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv sync
+run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync --python "${PYTHON_BIN}"
 
 echo "Done."
 echo "Activate with: source ${VENV_DIR}/bin/activate"

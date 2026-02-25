@@ -23,11 +23,15 @@ function Invoke-Step {
         return
     }
 
+    $global:LASTEXITCODE = 0
     & $Action
+    if ($LASTEXITCODE -ne 0) {
+        throw "Step failed: $Display (exit code: $LASTEXITCODE)"
+    }
 }
 
 function Resolve-VenvDir {
-    $venvBase = Join-Path $SkillDir "venv"
+    $venvBase = Join-Path $SkillDir "assets"
     $activeVenv = $env:VIRTUAL_ENV
 
     if ($activeVenv) {
@@ -47,7 +51,12 @@ function Resolve-VenvDir {
     }
 
     if (-not (Test-Path $venvBase)) {
-        throw "No venv directory found at $venvBase. Run setup-windows.ps1 first."
+        if ($DryRun) {
+            Write-Host "+ New-Item -ItemType Directory -Path '$venvBase' -Force"
+        }
+        else {
+            New-Item -ItemType Directory -Path $venvBase -Force | Out-Null
+        }
     }
 
     $versionDirs = Get-ChildItem -Path $venvBase -Directory -Filter "v*" -ErrorAction SilentlyContinue |
@@ -73,6 +82,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 $venvSpec = Resolve-VenvDir
+$pythonBin = Join-Path $venvSpec.Path "Scripts\\python.exe"
 Write-Host "Python version: $($venvSpec.VersionTag)"
 Write-Host "Venv path: $($venvSpec.Path)"
 
@@ -89,17 +99,76 @@ else {
     }
 }
 
-Invoke-Step -Display ("uv add " + ($Packages -join " ")) -Action {
-    uv add @Packages
-}
-Invoke-Step -Display "uv lock" -Action { uv lock }
-Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv sync" -Action {
+Invoke-Step -Display ("UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' add --python '$pythonBin' " + ($Packages -join " ")) -Action {
     $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
+    $previousVirtualEnv = $env:VIRTUAL_ENV
     $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
     try {
-        uv sync
+        if ($null -ne $previousVirtualEnv) {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+        uv --project $WorkspaceDir add --python $pythonBin @Packages
     }
     finally {
+        if ($null -ne $previousVirtualEnv) {
+            $env:VIRTUAL_ENV = $previousVirtualEnv
+        }
+        else {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+
+        if ($null -ne $previousProjectEnv) {
+            $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnv
+        }
+        else {
+            Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+        }
+    }
+}
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' lock --python '$pythonBin'" -Action {
+    $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
+    $previousVirtualEnv = $env:VIRTUAL_ENV
+    $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
+    try {
+        if ($null -ne $previousVirtualEnv) {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+        uv --project $WorkspaceDir lock --python $pythonBin
+    }
+    finally {
+        if ($null -ne $previousVirtualEnv) {
+            $env:VIRTUAL_ENV = $previousVirtualEnv
+        }
+        else {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+
+        if ($null -ne $previousProjectEnv) {
+            $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnv
+        }
+        else {
+            Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+        }
+    }
+}
+Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$($venvSpec.Path)' uv --project '$WorkspaceDir' sync --python '$pythonBin'" -Action {
+    $previousProjectEnv = $env:UV_PROJECT_ENVIRONMENT
+    $previousVirtualEnv = $env:VIRTUAL_ENV
+    $env:UV_PROJECT_ENVIRONMENT = $venvSpec.Path
+    try {
+        if ($null -ne $previousVirtualEnv) {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+        uv --project $WorkspaceDir sync --python $pythonBin
+    }
+    finally {
+        if ($null -ne $previousVirtualEnv) {
+            $env:VIRTUAL_ENV = $previousVirtualEnv
+        }
+        else {
+            Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+        }
+
         if ($null -ne $previousProjectEnv) {
             $env:UV_PROJECT_ENVIRONMENT = $previousProjectEnv
         }

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
 IS_SOURCED=0
-if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-  IS_SOURCED=1
-fi
-
-finish() {
-  local code="${1:-0}"
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then
-    return "${code}"
+if [[ -n "${ZSH_VERSION-}" ]]; then
+  case "${ZSH_EVAL_CONTEXT-}" in
+    *:file)
+      IS_SOURCED=1
+      ;;
+  esac
+elif [[ -n "${BASH_SOURCE[0]-}" ]]; then
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    IS_SOURCED=1
   fi
-  exit "${code}"
-}
+fi
 
 usage() {
   cat <<'EOF'
@@ -37,7 +37,16 @@ run_cmd() {
   "$@"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE=""
+if [[ -n "${BASH_SOURCE[0]-}" ]]; then
+  SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+elif [[ -n "${ZSH_VERSION-}" ]]; then
+  SCRIPT_SOURCE="$0"
+else
+  SCRIPT_SOURCE="$0"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_SOURCE}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 expand_home_path() {
@@ -176,7 +185,7 @@ while [[ $# -gt 0 ]]; do
       if [[ $# -lt 2 ]]; then
         echo "Missing value for $1" >&2
         usage
-        finish 1
+        if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
       fi
       PYTHON_REQUEST="$2"
       shift 2
@@ -185,14 +194,14 @@ while [[ $# -gt 0 ]]; do
       if [[ $# -lt 2 ]]; then
         echo "Missing value for --workspace" >&2
         usage
-        finish 1
+        if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
       fi
       WORKSPACE_ARG="$2"
       shift 2
       ;;
     -h|--help)
       usage
-      finish 0
+      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 0; else exit 0; fi
       ;;
     --)
       shift
@@ -201,7 +210,7 @@ while [[ $# -gt 0 ]]; do
     *)
       echo "Unknown option: $1" >&2
       usage
-      finish 1
+      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
       ;;
   esac
 done
@@ -209,56 +218,79 @@ done
 if [[ -z "${PYTHON_REQUEST}" ]]; then
   echo "--python <version> is required." >&2
   usage
-  finish 1
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
 
 if [[ "${IS_SOURCED}" -ne 1 && "${DRY_RUN}" -ne 1 ]]; then
   echo "Run this script with source to apply deactivate/activate in current shell." >&2
   echo "Example: source scripts/switch-python.sh --python ${PYTHON_REQUEST}" >&2
-  finish 1
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
 
-WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")" || finish 1
+if ! WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")"; then
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 echo "Workspace directory: ${WORKSPACE_DIR}"
 
-ensure_uv || finish 1
-resolve_python_spec || finish 1
+if ! ensure_uv; then
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
+if ! resolve_python_spec; then
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
-VENV_DIR="${SKILL_DIR}/venv/${PYTHON_VERSION_TAG}/.venv"
+VENV_DIR="${SKILL_DIR}/assets/${PYTHON_VERSION_TAG}/.venv"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
-run_cmd mkdir -p "${WORKSPACE_DIR}"
+if ! run_cmd mkdir -p "${WORKSPACE_DIR}"; then
+  echo "Failed to prepare workspace directory: ${WORKSPACE_DIR}" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo "+ [ -f ${WORKSPACE_DIR}/pyproject.toml ] || uv --directory ${WORKSPACE_DIR} init"
+  echo "+ [ -f ${WORKSPACE_DIR}/pyproject.toml ] || uv --directory ${WORKSPACE_DIR} init --python ${PYTHON_BIN}"
 else
   if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
-    run_cmd uv --directory "${WORKSPACE_DIR}" init
+    if ! run_cmd uv --directory "${WORKSPACE_DIR}" init --python "${PYTHON_BIN}"; then
+      echo "Failed to initialize workspace project: ${WORKSPACE_DIR}" >&2
+      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+    fi
   fi
 fi
 
-run_cmd mkdir -p "$(dirname "${VENV_DIR}")"
+if ! run_cmd mkdir -p "$(dirname "${VENV_DIR}")"; then
+  echo "Failed to prepare venv directory: $(dirname "${VENV_DIR}")" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -d ${VENV_DIR} ] || uv venv --python ${PYTHON_BIN} ${VENV_DIR}"
 else
   if [[ ! -d "${VENV_DIR}" ]]; then
-    run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"
+    if ! run_cmd uv venv --python "${PYTHON_BIN}" "${VENV_DIR}"; then
+      echo "Failed to create venv: ${VENV_DIR}" >&2
+      if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+    fi
   fi
 fi
-run_cmd env UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync
+if ! run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${WORKSPACE_DIR}" sync --python "${PYTHON_BIN}"; then
+  echo "Failed to sync dependencies for Python ${PYTHON_VERSION_TAG} in ${WORKSPACE_DIR}." >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ deactivate (if active)"
   echo "+ source ${VENV_DIR}/bin/activate"
-  finish 0
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 0; else exit 0; fi
 fi
 
-if declare -F deactivate >/dev/null 2>&1; then
+if command -v deactivate >/dev/null 2>&1; then
   deactivate || true
 fi
-source "${VENV_DIR}/bin/activate"
+if ! source "${VENV_DIR}/bin/activate"; then
+  echo "Failed to activate environment: ${VENV_DIR}" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 echo "Activated VIRTUAL_ENV: ${VIRTUAL_ENV}"
-
-finish 0
+if [[ "${IS_SOURCED}" -eq 1 ]]; then return 0; else exit 0; fi
