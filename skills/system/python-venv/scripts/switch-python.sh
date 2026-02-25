@@ -111,36 +111,6 @@ resolve_python_spec() {
   PYTHON_BIN="${resolved_python_bin}"
 }
 
-ensure_src_runner_scripts() {
-  local src_dir="${PYTHON_VERSION_DIR}/src"
-  local shell_template="${SCRIPT_DIR}/src-runner.sh"
-  local pwsh_template="${SCRIPT_DIR}/src-runner.ps1"
-  local shell_runner="${src_dir}/run-generated.sh"
-  local pwsh_runner="${src_dir}/run-generated.ps1"
-
-  if [[ ! -f "${shell_template}" ]]; then
-    echo "Runner template not found: ${shell_template}" >&2
-    return 1
-  fi
-  if [[ ! -f "${pwsh_template}" ]]; then
-    echo "Runner template not found: ${pwsh_template}" >&2
-    return 1
-  fi
-
-  if ! run_cmd mkdir -p "${src_dir}"; then
-    return 1
-  fi
-  if ! run_cmd cp "${shell_template}" "${shell_runner}"; then
-    return 1
-  fi
-  if ! run_cmd chmod +x "${shell_runner}"; then
-    return 1
-  fi
-  if ! run_cmd cp "${pwsh_template}" "${pwsh_runner}"; then
-    return 1
-  fi
-}
-
 DRY_RUN=0
 PYTHON_REQUEST=""
 
@@ -192,10 +162,6 @@ if ! run_cmd mkdir -p "${ASSETS_BASE_DIR}"; then
   echo "Failed to prepare assets directory: ${ASSETS_BASE_DIR}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
-if ! run_cmd cd "${ASSETS_BASE_DIR}"; then
-  echo "Failed to enter assets directory: ${ASSETS_BASE_DIR}" >&2
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-fi
 
 if ! ensure_uv; then
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
@@ -216,6 +182,10 @@ if ! run_cmd mkdir -p "${PYTHON_VERSION_DIR}"; then
   echo "Failed to prepare venv directory: ${PYTHON_VERSION_DIR}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
+if ! run_cmd mkdir -p "${PYTHON_VERSION_DIR}/src"; then
+  echo "Failed to prepare source directory: ${PYTHON_VERSION_DIR}/src" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -f ${PROJECT_DIR}/pyproject.toml ] || uv --directory ${PROJECT_DIR} init --bare --python ${PYTHON_BIN}"
 else
@@ -227,11 +197,8 @@ else
   fi
 fi
 echo "Project directory: ${PROJECT_DIR}"
+echo "Source directory: ${PYTHON_VERSION_DIR}/src"
 
-if ! run_cmd cd "${PYTHON_VERSION_DIR}"; then
-  echo "Failed to enter venv directory: ${PYTHON_VERSION_DIR}" >&2
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -d ${VENV_DIR} ] || uv venv --python ${PYTHON_BIN} ${VENV_DIR}"
 else
@@ -246,12 +213,6 @@ if ! run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --projec
   echo "Failed to sync dependencies for Python ${PYTHON_VERSION_TAG} in ${PROJECT_DIR}." >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
-if ! ensure_src_runner_scripts; then
-  echo "Failed to install generated-script runner under ${PYTHON_VERSION_DIR}/src." >&2
-  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
-fi
-echo "Generated script runner (bash): ${PYTHON_VERSION_DIR}/src/run-generated.sh"
-echo "Generated script runner (PowerShell): ${PYTHON_VERSION_DIR}/src/run-generated.ps1"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ deactivate (if active)"

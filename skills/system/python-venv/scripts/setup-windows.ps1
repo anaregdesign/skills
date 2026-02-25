@@ -82,43 +82,10 @@ function Resolve-PythonSpec {
     }
 }
 
-function Install-SrcRunnerScripts {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$VersionDir
-    )
-
-    $srcDir = Join-Path $VersionDir "src"
-    $shellTemplate = Join-Path $ScriptDir "src-runner.sh"
-    $pwshTemplate = Join-Path $ScriptDir "src-runner.ps1"
-    $shellRunner = Join-Path $srcDir "run-generated.sh"
-    $pwshRunner = Join-Path $srcDir "run-generated.ps1"
-
-    if (-not (Test-Path $shellTemplate)) {
-        throw "Runner template not found: $shellTemplate"
-    }
-    if (-not (Test-Path $pwshTemplate)) {
-        throw "Runner template not found: $pwshTemplate"
-    }
-
-    Invoke-Step -Display "New-Item -ItemType Directory -Path '$srcDir' -Force" -Action {
-        New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
-    }
-    Invoke-Step -Display "Copy-Item -Path '$shellTemplate' -Destination '$shellRunner' -Force" -Action {
-        Copy-Item -Path $shellTemplate -Destination $shellRunner -Force
-    }
-    Invoke-Step -Display "Copy-Item -Path '$pwshTemplate' -Destination '$pwshRunner' -Force" -Action {
-        Copy-Item -Path $pwshTemplate -Destination $pwshRunner -Force
-    }
-}
-
 $assetsBaseDir = Join-Path $SkillDir "assets"
 
 Invoke-Step -Display "New-Item -ItemType Directory -Path '$assetsBaseDir' -Force" -Action {
     New-Item -ItemType Directory -Path $assetsBaseDir -Force | Out-Null
-}
-Invoke-Step -Display "Set-Location '$assetsBaseDir'" -Action {
-    Set-Location $assetsBaseDir
 }
 
 if (Get-Command uv -ErrorAction SilentlyContinue) {
@@ -150,12 +117,16 @@ $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
 $pythonVersionDir = Join-Path $assetsBaseDir $pythonVersionTag
 $venvDir = Join-Path $pythonVersionDir ".venv"
+$srcDir = Join-Path $pythonVersionDir "src"
 $projectDir = $pythonVersionDir
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $pythonVersionTag"
 Write-Host "Venv path: $venvDir"
 Invoke-Step -Display "New-Item -ItemType Directory -Path '$pythonVersionDir' -Force" -Action {
     New-Item -ItemType Directory -Path $pythonVersionDir -Force | Out-Null
+}
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$srcDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $srcDir -Force | Out-Null
 }
 
 if ($DryRun) {
@@ -169,10 +140,7 @@ else {
     }
 }
 Write-Host "Project directory: $projectDir"
-
-Invoke-Step -Display "Set-Location '$pythonVersionDir'" -Action {
-    Set-Location $pythonVersionDir
-}
+Write-Host "Source directory: $srcDir"
 
 if ($DryRun) {
     Write-Host "+ if (-not (Test-Path '$venvDir')) { uv venv --python '$($pythonSpec.Path)' '$venvDir' }"
@@ -215,9 +183,5 @@ Invoke-Step -Display "UV_PROJECT_ENVIRONMENT='$venvDir' uv --project '$projectDi
     }
 }
 
-Install-SrcRunnerScripts -VersionDir $pythonVersionDir
-
 Write-Host "Done."
 Write-Host "Activate with: $venvDir\Scripts\Activate.ps1"
-Write-Host "Generated script runner (bash): $(Join-Path $pythonVersionDir 'src\run-generated.sh')"
-Write-Host "Generated script runner (PowerShell): $(Join-Path $pythonVersionDir 'src\run-generated.ps1')"

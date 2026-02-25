@@ -70,28 +70,6 @@ resolve_python_spec() {
   PYTHON_BIN="${resolved_python_bin}"
 }
 
-ensure_src_runner_scripts() {
-  local src_dir="${PYTHON_VERSION_DIR}/src"
-  local shell_template="${SCRIPT_DIR}/src-runner.sh"
-  local pwsh_template="${SCRIPT_DIR}/src-runner.ps1"
-  local shell_runner="${src_dir}/run-generated.sh"
-  local pwsh_runner="${src_dir}/run-generated.ps1"
-
-  if [[ ! -f "${shell_template}" ]]; then
-    echo "Runner template not found: ${shell_template}" >&2
-    return 1
-  fi
-  if [[ ! -f "${pwsh_template}" ]]; then
-    echo "Runner template not found: ${pwsh_template}" >&2
-    return 1
-  fi
-
-  run_cmd mkdir -p "${src_dir}"
-  run_cmd cp "${shell_template}" "${shell_runner}"
-  run_cmd chmod +x "${shell_runner}"
-  run_cmd cp "${pwsh_template}" "${pwsh_runner}"
-}
-
 DRY_RUN=0
 PYTHON_REQUEST="3"
 while [[ $# -gt 0 ]]; do
@@ -135,13 +113,7 @@ if [[ $# -gt 0 ]]; then
 fi
 
 ASSETS_BASE_DIR="${SKILL_DIR}/assets"
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-  printf '+ mkdir -p %q\n' "${ASSETS_BASE_DIR}"
-  printf '+ cd %q\n' "${ASSETS_BASE_DIR}"
-else
-  mkdir -p "${ASSETS_BASE_DIR}"
-  cd "${ASSETS_BASE_DIR}"
-fi
+run_cmd mkdir -p "${ASSETS_BASE_DIR}"
 
 if command -v uv >/dev/null 2>&1; then
   if [[ "${DRY_RUN}" -eq 0 ]]; then
@@ -171,6 +143,7 @@ echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
 run_cmd mkdir -p "${PYTHON_VERSION_DIR}"
+run_cmd mkdir -p "${PYTHON_VERSION_DIR}/src"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -f ${PROJECT_DIR}/pyproject.toml ] || uv --directory ${PROJECT_DIR} init --bare --python ${PYTHON_BIN}"
 else
@@ -179,12 +152,8 @@ else
   fi
 fi
 echo "Project directory: ${PROJECT_DIR}"
+echo "Source directory: ${PYTHON_VERSION_DIR}/src"
 
-if [[ "${DRY_RUN}" -eq 1 ]]; then
-  printf '+ cd %q\n' "${PYTHON_VERSION_DIR}"
-else
-  cd "${PYTHON_VERSION_DIR}"
-fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -d ${VENV_DIR} ] || uv venv --python ${PYTHON_BIN} ${VENV_DIR}"
 else
@@ -195,9 +164,6 @@ else
   fi
 fi
 run_cmd env -u VIRTUAL_ENV UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
-ensure_src_runner_scripts || exit 1
 
 echo "Done."
 echo "Activate with: source ${VENV_DIR}/bin/activate"
-echo "Generated script runner (bash): ${PYTHON_VERSION_DIR}/src/run-generated.sh"
-echo "Generated script runner (PowerShell): ${PYTHON_VERSION_DIR}/src/run-generated.ps1"

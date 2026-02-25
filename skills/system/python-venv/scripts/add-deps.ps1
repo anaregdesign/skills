@@ -87,12 +87,10 @@ Write-Host "Python version: $($venvSpec.VersionTag)"
 Write-Host "Venv path: $($venvSpec.Path)"
 
 if ($DryRun) {
-    Write-Host "+ Set-Location '$pythonVersionDir'"
     Write-Host "+ uv --version"
     Write-Host "+ if (-not (Test-Path '$projectDir\\pyproject.toml')) { uv --directory '$projectDir' init --bare --python '$pythonBin' }"
 }
 else {
-    Set-Location $pythonVersionDir
     uv --version
     if (-not (Test-Path (Join-Path $projectDir "pyproject.toml"))) {
         uv --directory $projectDir init --bare --python $pythonBin

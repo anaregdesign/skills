@@ -122,9 +122,7 @@ echo "Venv path: ${VENV_DIR}"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ uv --version"
-  printf '+ cd %q\n' "${PYTHON_VERSION_DIR}"
 else
-  cd "${PYTHON_VERSION_DIR}"
   uv --version
 fi
 
