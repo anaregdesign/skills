@@ -2,13 +2,17 @@
 name: python-venv
 description: |
   Default first-step skill for Python runtime setup.
+  Even when the user does not explicitly request environment setup,
+  trigger this skill first whenever the conversation context implies
+  Python execution is required.
   Trigger this skill when any of the following applies:
-  - User asks for a Python execution environment.
-  - User asks for virtual environment setup (venv/.venv).
-  - User asks for Python interpreter setup.
-  - User asks for package installation readiness.
-  - User requests a specific Python version (for example 3.12.10).
-  - User reports dependency/runtime errors (for example ModuleNotFoundError).
+  - A Python execution environment is required for the next step.
+  - Virtual environment setup (venv/.venv) is required.
+  - Python interpreter setup or version alignment is required.
+  - Package installation or dependency resolution is required.
+  - A specific Python version is required (for example 3.12.10).
+  - Dependency/runtime errors are present (for example ModuleNotFoundError).
+  - The next task step requires running Python/package commands in the terminal.
   Execute cross-platform workspace bootstrap with uv for macOS,
   Linux, and Windows. Always place environments at
   `<skill-dir>/assets/vX.Y.Z/.venv`.
@@ -31,6 +35,9 @@ Python 実行環境が必要な依頼では、この skill を最初に使う。
 - package 導入準備（依存解決）を求められたとき
 - Python の特定バージョンを要求されたとき
 - `ModuleNotFoundError` など依存不足 error が出ているとき
+- ユーザが明示していなくても、対話の次の手順で Python 実行が必要だと判断できるとき
+- `python`, `pytest`, `uv run`, `uv add`, `pip` など Python/package 系 command の実行が必要になるとき
+- 上記に該当する場合は、必ずこの skill を先に呼び出してから本作業に進む
 
 ## Scripts
 
