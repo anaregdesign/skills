@@ -139,6 +139,14 @@ function Resolve-PythonSpec {
 
 $WorkspaceDir = Resolve-WorkspaceDir -ExplicitDir $WorkspaceDir
 Write-Host "Workspace directory: $WorkspaceDir"
+$assetsBaseDir = Join-Path $SkillDir "assets"
+
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$assetsBaseDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $assetsBaseDir -Force | Out-Null
+}
+Invoke-Step -Display "Set-Location '$assetsBaseDir'" -Action {
+    Set-Location $assetsBaseDir
+}
 
 if (Get-Command uv -ErrorAction SilentlyContinue) {
     if ($DryRun) {
@@ -167,7 +175,8 @@ else {
 
 $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
-$venvDir = Join-Path (Join-Path (Join-Path $SkillDir "assets") $pythonVersionTag) ".venv"
+$pythonVersionDir = Join-Path $assetsBaseDir $pythonVersionTag
+$venvDir = Join-Path $pythonVersionDir ".venv"
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $pythonVersionTag"
 Write-Host "Venv path: $venvDir"
@@ -177,18 +186,21 @@ Invoke-Step -Display "New-Item -ItemType Directory -Path '$WorkspaceDir' -Force"
 }
 
 if ($DryRun) {
-    Write-Host "+ Set-Location '$WorkspaceDir'"
-    Write-Host "+ if (-not (Test-Path pyproject.toml)) { uv init --python '$($pythonSpec.Path)' }"
+    Write-Host "+ if (-not (Test-Path '$WorkspaceDir\\pyproject.toml')) { uv --directory '$WorkspaceDir' init --python '$($pythonSpec.Path)' }"
 }
 else {
-    Set-Location $WorkspaceDir
-    if (-not (Test-Path pyproject.toml)) {
-        Invoke-Step -Display "uv init --python '$($pythonSpec.Path)'" -Action { uv init --python $pythonSpec.Path }
+    if (-not (Test-Path (Join-Path $WorkspaceDir "pyproject.toml"))) {
+        Invoke-Step -Display "uv --directory '$WorkspaceDir' init --python '$($pythonSpec.Path)'" -Action {
+            uv --directory $WorkspaceDir init --python $pythonSpec.Path
+        }
     }
 }
 
-Invoke-Step -Display "New-Item -ItemType Directory -Path '$(Split-Path -Parent $venvDir)' -Force" -Action {
-    New-Item -ItemType Directory -Path (Split-Path -Parent $venvDir) -Force | Out-Null
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$pythonVersionDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $pythonVersionDir -Force | Out-Null
+}
+Invoke-Step -Display "Set-Location '$pythonVersionDir'" -Action {
+    Set-Location $pythonVersionDir
 }
 
 if ($DryRun) {

@@ -83,18 +83,19 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 
 $venvSpec = Resolve-VenvDir
 $pythonBin = Join-Path $venvSpec.Path "Scripts\\python.exe"
+$pythonVersionDir = Split-Path -Parent $venvSpec.Path
 Write-Host "Python version: $($venvSpec.VersionTag)"
 Write-Host "Venv path: $($venvSpec.Path)"
 
 if ($DryRun) {
+    Write-Host "+ Set-Location '$pythonVersionDir'"
     Write-Host "+ uv --version"
-    Write-Host "+ Set-Location '$WorkspaceDir'"
-    Write-Host "+ if (-not (Test-Path pyproject.toml)) { throw 'pyproject.toml not found' }"
+    Write-Host "+ if (-not (Test-Path '$WorkspaceDir\\pyproject.toml')) { throw 'pyproject.toml not found' }"
 }
 else {
+    Set-Location $pythonVersionDir
     uv --version
-    Set-Location $WorkspaceDir
-    if (-not (Test-Path pyproject.toml)) {
+    if (-not (Test-Path (Join-Path $WorkspaceDir "pyproject.toml"))) {
         throw "pyproject.toml not found in $WorkspaceDir"
     }
 }

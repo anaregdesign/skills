@@ -232,6 +232,16 @@ if ! WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")"; then
 fi
 echo "Workspace directory: ${WORKSPACE_DIR}"
 
+ASSETS_BASE_DIR="${SKILL_DIR}/assets"
+if ! run_cmd mkdir -p "${ASSETS_BASE_DIR}"; then
+  echo "Failed to prepare assets directory: ${ASSETS_BASE_DIR}" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
+if ! run_cmd cd "${ASSETS_BASE_DIR}"; then
+  echo "Failed to enter assets directory: ${ASSETS_BASE_DIR}" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
+
 if ! ensure_uv; then
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
@@ -240,7 +250,8 @@ if ! resolve_python_spec; then
 fi
 
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
-VENV_DIR="${SKILL_DIR}/assets/${PYTHON_VERSION_TAG}/.venv"
+PYTHON_VERSION_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
+VENV_DIR="${PYTHON_VERSION_DIR}/.venv"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
@@ -260,8 +271,12 @@ else
   fi
 fi
 
-if ! run_cmd mkdir -p "$(dirname "${VENV_DIR}")"; then
-  echo "Failed to prepare venv directory: $(dirname "${VENV_DIR}")" >&2
+if ! run_cmd mkdir -p "${PYTHON_VERSION_DIR}"; then
+  echo "Failed to prepare venv directory: ${PYTHON_VERSION_DIR}" >&2
+  if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
+fi
+if ! run_cmd cd "${PYTHON_VERSION_DIR}"; then
+  echo "Failed to enter venv directory: ${PYTHON_VERSION_DIR}" >&2
   if [[ "${IS_SOURCED}" -eq 1 ]]; then return 1; else exit 1; fi
 fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then

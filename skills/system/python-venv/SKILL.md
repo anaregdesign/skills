@@ -213,6 +213,7 @@ powershell -ExecutionPolicy ByPass `
 - すべての command は `pyproject.toml` がある workspace で実行する。
 - Python env の path は必ず `<skill-dir>/assets/vX.Y.Z/.venv` に統一する。
 - `assets/` が存在しない場合は script が自動作成し、directory 不在では失敗しない。
+- `uv` command は必ず `assets/` 配下（基本は `assets/vX.Y.Z`）に `cd` してから実行する。
 - 別バージョン要求時は新しい `vX.Y.Z/.venv` を作成する。
 - 同じ version の env が存在する場合は再作成しない。
 - version 切替時は current env を deactivate してから activate する。

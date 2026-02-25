@@ -174,11 +174,20 @@ if (-not $isDotSourced -and -not $DryRun) {
 
 $WorkspaceDir = Resolve-WorkspaceDir -ExplicitDir $WorkspaceDir
 Write-Host "Workspace directory: $WorkspaceDir"
+$assetsBaseDir = Join-Path $SkillDir "assets"
+
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$assetsBaseDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $assetsBaseDir -Force | Out-Null
+}
+Invoke-Step -Display "Set-Location '$assetsBaseDir'" -Action {
+    Set-Location $assetsBaseDir
+}
 
 Ensure-Uv
 $pythonSpec = Resolve-PythonSpec -PythonRequest $PythonVersion
 $pythonVersionTag = "v$($pythonSpec.Version)"
-$venvDir = Join-Path (Join-Path (Join-Path $SkillDir "assets") $pythonVersionTag) ".venv"
+$pythonVersionDir = Join-Path $assetsBaseDir $pythonVersionTag
+$venvDir = Join-Path $pythonVersionDir ".venv"
 $activateScript = Join-Path $venvDir "Scripts\Activate.ps1"
 Write-Host "Python request: $PythonVersion"
 Write-Host "Python version: $pythonVersionTag"
@@ -199,8 +208,11 @@ else {
     }
 }
 
-Invoke-Step -Display "New-Item -ItemType Directory -Path '$(Split-Path -Parent $venvDir)' -Force" -Action {
-    New-Item -ItemType Directory -Path (Split-Path -Parent $venvDir) -Force | Out-Null
+Invoke-Step -Display "New-Item -ItemType Directory -Path '$pythonVersionDir' -Force" -Action {
+    New-Item -ItemType Directory -Path $pythonVersionDir -Force | Out-Null
+}
+Invoke-Step -Display "Set-Location '$pythonVersionDir'" -Action {
+    Set-Location $pythonVersionDir
 }
 
 if ($DryRun) {

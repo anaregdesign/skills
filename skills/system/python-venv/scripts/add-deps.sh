@@ -117,21 +117,22 @@ fi
 
 resolve_existing_venv_dir || exit 1
 PYTHON_BIN="${VENV_DIR}/bin/python"
+PYTHON_VERSION_DIR="$(dirname "${VENV_DIR}")"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ uv --version"
-  printf '+ cd %q\n' "${WORKSPACE_DIR}"
+  printf '+ cd %q\n' "${PYTHON_VERSION_DIR}"
 else
+  cd "${PYTHON_VERSION_DIR}"
   uv --version
-  cd "${WORKSPACE_DIR}"
 fi
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo "+ test -f pyproject.toml"
+  echo "+ test -f ${WORKSPACE_DIR}/pyproject.toml"
 else
-  if [[ ! -f pyproject.toml ]]; then
+  if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
     echo "pyproject.toml not found in ${WORKSPACE_DIR}" >&2
     exit 1
   fi

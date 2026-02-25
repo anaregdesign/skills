@@ -180,6 +180,15 @@ fi
 WORKSPACE_DIR="$(detect_workspace_dir "${WORKSPACE_ARG}")" || exit 1
 echo "Workspace directory: ${WORKSPACE_DIR}"
 
+ASSETS_BASE_DIR="${SKILL_DIR}/assets"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  printf '+ mkdir -p %q\n' "${ASSETS_BASE_DIR}"
+  printf '+ cd %q\n' "${ASSETS_BASE_DIR}"
+else
+  mkdir -p "${ASSETS_BASE_DIR}"
+  cd "${ASSETS_BASE_DIR}"
+fi
+
 if command -v uv >/dev/null 2>&1; then
   if [[ "${DRY_RUN}" -eq 0 ]]; then
     uv --version
@@ -200,24 +209,28 @@ fi
 
 resolve_python_spec || exit 1
 PYTHON_VERSION_TAG="v${PYTHON_VERSION}"
-VENV_DIR="${SKILL_DIR}/assets/${PYTHON_VERSION_TAG}/.venv"
+PYTHON_VERSION_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
+VENV_DIR="${PYTHON_VERSION_DIR}/.venv"
 echo "Python request: ${PYTHON_REQUEST}"
 echo "Python version: ${PYTHON_VERSION_TAG}"
 echo "Venv path: ${VENV_DIR}"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   printf '+ mkdir -p %q\n' "${WORKSPACE_DIR}"
-  printf '+ cd %q\n' "${WORKSPACE_DIR}"
-  echo "+ [ -f pyproject.toml ] || uv init --python ${PYTHON_BIN}"
+  echo "+ [ -f ${WORKSPACE_DIR}/pyproject.toml ] || uv --directory ${WORKSPACE_DIR} init --python ${PYTHON_BIN}"
 else
   mkdir -p "${WORKSPACE_DIR}"
-  cd "${WORKSPACE_DIR}"
-  if [[ ! -f pyproject.toml ]]; then
-    run_cmd uv init --python "${PYTHON_BIN}"
+  if [[ ! -f "${WORKSPACE_DIR}/pyproject.toml" ]]; then
+    run_cmd uv --directory "${WORKSPACE_DIR}" init --python "${PYTHON_BIN}"
   fi
 fi
 
-run_cmd mkdir -p "$(dirname "${VENV_DIR}")"
+run_cmd mkdir -p "${PYTHON_VERSION_DIR}"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  printf '+ cd %q\n' "${PYTHON_VERSION_DIR}"
+else
+  cd "${PYTHON_VERSION_DIR}"
+fi
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ [ -d ${VENV_DIR} ] || uv venv --python ${PYTHON_BIN} ${VENV_DIR}"
 else
