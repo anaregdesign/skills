@@ -49,6 +49,25 @@ Keep this order strict: `decide content -> select layout`.
 ```json
 {
   "language": "ja",
+  "brief": {
+    "audience": "Exec leadership",
+    "objective": "Explain options and recommend one",
+    "required_decision": "Approve FY2026 migration budget"
+  },
+  "design_system": {
+    "font_families": ["Noto Sans JP", "Noto Serif JP"],
+    "size_scale_pt": {
+      "title": 34,
+      "subtitle": 22,
+      "body": 18,
+      "caption": 12
+    },
+    "color_roles": {
+      "base": "#0F172A",
+      "accent": "#0EA5E9",
+      "warning": "#DC2626"
+    }
+  },
   "auto_slide_order": ["title", "agenda", "content", "summary"],
   "title_slide": {
       "title": "Theme title",
@@ -59,6 +78,9 @@ Keep this order strict: `decide content -> select layout`.
   "slides": [
     {
       "title": "Slide header",
+      "message": "One-line core takeaway of this slide",
+      "story_role": "context",
+      "intent": "visual_split",
       "subtitle": "Optional subtitle",
       "bullets": [
         "Key point 1",
@@ -98,6 +120,14 @@ Keep this order strict: `decide content -> select layout`.
 
 ## Field details
 
+- `brief` (recommended): Communication brief.
+  - `audience`: Target readers.
+  - `objective`: What this deck should accomplish.
+  - `required_decision`: Explicit decision/action expected after reading.
+- `design_system` (recommended): Visual tokens for consistency.
+  - `font_families`: Preferred families.
+  - `size_scale_pt`: Title/subtitle/body/caption size scale.
+  - `color_roles`: Base/accent/warning color roles.
 - `title_slide` (optional): Adds a title slide section (position depends on `auto_slide_order`).
 - `slides` (required): Non-empty list of slide objects.
 - `language` (recommended): Deck language (`ja` or `en`) matching prompt language.
@@ -106,6 +136,9 @@ Keep this order strict: `decide content -> select layout`.
 Slide object fields:
 
 - `title` (required): Slide title text.
+- `message` (recommended): One-sentence key takeaway; enforce one slide/one message.
+- `story_role` (recommended): Role in story flow (`context`, `problem`, `analysis`, `options`, `recommendation`, `next_action`).
+- `intent` (recommended): Layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
 - `subtitle` (optional): Subtitle text.
 - `layout` (optional metadata): Ignored by renderer because layout is auto-detected.
 - `layout_name` (optional metadata): Ignored by renderer because layout is auto-detected.
@@ -135,6 +168,8 @@ Table object fields:
 
 - Resolve relative image paths from the plan JSON location.
 - For `mcp-mermaid` diagrams, keep image files under the same work directory (recommended: `assets/generated/mermaid/` when `deck_plan.json` is in `"$WORK_DIR"`).
+- Keep image aspect ratio choices intentional across deck (avoid random mix of portrait/landscape crops).
+- Keep caption style and icon style consistent on every visual slide.
 - Keep all slide text in `language` unless bilingual output is explicitly requested.
 - Keep every content slide structured with bullets, a table, or a visual.
 - Prefer one message per slide.

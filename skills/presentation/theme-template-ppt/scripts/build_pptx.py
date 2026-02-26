@@ -1502,7 +1502,8 @@ def set_title(slide: Any, title_text: str) -> None:
         text_frame.paragraphs[0].text = title_text
         return
 
-    box = slide.shapes.add_textbox(Inches(0.75), Inches(0.3), Inches(11.5), Inches(0.9))
+    # Keep fallback box safely inside common 10in+ slide widths.
+    box = slide.shapes.add_textbox(Inches(0.75), Inches(0.3), Inches(8.5), Inches(0.9))
     paragraph = box.text_frame.paragraphs[0]
     paragraph.text = title_text
     paragraph.font.size = Pt(30)
@@ -1525,7 +1526,8 @@ def set_subtitle(slide: Any, subtitle_text: str) -> None:
             text_frame.paragraphs[0].text = subtitle_text
             return
 
-    box = slide.shapes.add_textbox(Inches(0.75), Inches(1.4), Inches(11.5), Inches(0.9))
+    # Keep fallback subtitle box inside slide bounds.
+    box = slide.shapes.add_textbox(Inches(0.75), Inches(1.4), Inches(8.5), Inches(0.9))
     paragraph = box.text_frame.paragraphs[0]
     paragraph.text = subtitle_text
     paragraph.font.size = Pt(20)
@@ -1857,6 +1859,8 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     inserted_tables = 0
     master_auto_layout_count = 0
     added_slides = 0
+    layout_intent_summary: dict[str, int] = {}
+    layout_selection_trace: list[dict[str, Any]] = []
 
     def append_one(spec_obj: dict[str, Any], *, kind: str, seq: int) -> dict[str, Any]:
         spec_path = (work_dir / f"slide_spec_{seq:03d}_{kind}.json").resolve()
@@ -1919,6 +1923,26 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
                 inserted_tables += 1
             if slide_result.get("visual_added"):
                 inserted_visuals += 1
+            layout_intent = slide_result.get("layout_intent")
+            if isinstance(layout_intent, dict):
+                intent_key = str(layout_intent.get("intent_key", "")).strip()
+                if intent_key:
+                    layout_intent_summary[intent_key] = (
+                        layout_intent_summary.get(intent_key, 0) + 1
+                    )
+                layout_selection_trace.append(
+                    {
+                        "section": section,
+                        "kind": kind,
+                        "intent_key": intent_key or "unknown",
+                        "intent_description": str(
+                            layout_intent.get("intent_description", "")
+                        ).strip(),
+                        "selected_layout_name": str(
+                            layout_intent.get("selected_layout_name", "")
+                        ).strip(),
+                    }
+                )
 
     return {
         "work_dir": work_dir,
@@ -1937,6 +1961,8 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
         "master_auto_layout_count": master_auto_layout_count,
         "created_master_layout_count": layout_bootstrap["created_count"],
         "created_master_layouts": layout_bootstrap["created_layout_names"],
+        "layout_intent_summary": layout_intent_summary,
+        "layout_selection_trace": layout_selection_trace,
         "auto_slide_order": auto_slide_order,
         "language": resolved_language,
     }
@@ -1972,6 +1998,12 @@ def main() -> int:
     print(f"[OK] Created master layouts: {result['created_master_layout_count']}")
     if result["created_master_layouts"]:
         print(f"[OK] Created master layout names: {', '.join(result['created_master_layouts'])}")
+    if result["layout_intent_summary"]:
+        summary_pairs = [
+            f"{key}:{count}"
+            for key, count in sorted(result["layout_intent_summary"].items())
+        ]
+        print(f"[OK] Layout intents: {', '.join(summary_pairs)}")
     print(f"[OK] Language: {result['language']}")
     return 0
 

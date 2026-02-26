@@ -56,7 +56,7 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 
 ## Input Contract
 
-- Collect: theme, target audience, objective, preferred slide count, and deadline.
+- Collect: theme, target audience, objective, required decision/action, preferred slide count, and deadline.
 - Collect: optional `slide_title` for output filename.
 - Use `assets/template.pptx` as the canonical template.
 - Place reusable visuals (logo/icons/brand images) in `assets/`.
@@ -129,7 +129,66 @@ scripts/ensure_workdir_key.bash
 
 - Use the same `THEME_TEMPLATE_PPT_WORK_KEY` on later turns in the same thread.
 
-### 2. Emit Required JSON Files Before Build
+### 2. Define Brief and Design System First
+
+- Fix communication brief in plain language before drafting slides:
+  - audience,
+  - objective,
+  - required decision/action.
+- Define design system tokens before writing page copy:
+  - heading hierarchy (`title > subtitle > body > caption`),
+  - allowed font families and size scale,
+  - base/accent/warning color roles,
+  - target margins and guide alignment rules.
+- Keep one slide = one message.
+- Keep narrative order explicit (`agenda -> context -> analysis -> recommendation -> summary`).
+
+### 3. Research Theme on the Web
+
+- Search the web based on the theme.
+- Prefer primary or official sources.
+- Cross-check key claims with at least two sources.
+- Record source URLs and retrieval dates.
+
+### 4. Inspect Template Slide Masters First
+
+- Before planning content, inspect layout catalog from template:
+
+```bash
+scripts/build_pptx.py --list-layouts
+```
+
+- Optional: save catalog JSON for plan authoring:
+
+```bash
+scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
+```
+
+- Use this catalog to understand which layout patterns exist in the template.
+- The script auto-selects one of these existing master layouts for each slide.
+- If required profiles are missing (title/content/visual/table), the script clones and adds missing layouts.
+
+### 5. Draft Story Headers and Page Intent
+
+- Produce a bullet list of slide headers before writing slide bodies.
+- Keep at least five headers unless the user specifies a different count.
+- For each header, attach:
+  - one-line message,
+  - one layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+
+### 6. Deep-Dive Headers and Build Structured Slides
+
+- Expand each header into one slide message.
+- Keep each slide to 2-5 concise bullet points.
+- Choose at least one structured format per content slide:
+  - bullets,
+  - table,
+  - diagram/chart image.
+- Attach source links to factual claims.
+- Keep terminology, units, dates, and language consistent across all slides.
+- Build the plan JSON using `references/deck-plan-schema.md`.
+
+### 7. Emit Required JSON Files Before Build
 
 - Resolve the working directory once and keep it in this thread:
 
@@ -166,25 +225,7 @@ scripts/validate_json.py "$WORK_DIR/deck_plan.json"
 - If charts are needed, write chart spec JSON under the same work directory (for example `"$WORK_DIR/chart_spec_001.json"`), then validate it with `scripts/validate_json.py`.
 - Do not call `build_pptx.py` until `"$WORK_DIR/deck_plan.json"` exists and passes validation.
 
-### 3. Inspect Template Slide Masters First
-
-- Before planning content, inspect layout catalog from template:
-
-```bash
-scripts/build_pptx.py --list-layouts
-```
-
-- Optional: save catalog JSON for plan authoring:
-
-```bash
-scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
-```
-
-- Use this catalog to understand which layout patterns exist in the template.
-- The script auto-selects one of these existing master layouts for each slide.
-- If required profiles are missing (title/content/visual/table), the script clones and adds missing layouts.
-
-### 4. Decide Slide Content First, Then Select Layout
+### 8. Decide Slide Content First, Then Select Layout
 
 - For each page, decide content first:
   - title/subtitle,
@@ -197,39 +238,14 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
   - and current usage balance.
 - Keep this order strict: `decide content -> select layout`.
 
-### 5. Fix Output Language from Prompt
+### 9. Fix Output Language from Prompt
 
 - Detect user prompt language first (`ja` or `en`).
 - Set `plan.language` to that value.
 - Keep all slide/chart/table text in that language unless user explicitly asks bilingual output.
 - Add `language` to every chart spec and keep it aligned with `plan.language`.
 
-### 6. Research Theme on the Web
-
-- Search the web based on the theme.
-- Prefer primary or official sources.
-- Cross-check key claims with at least two sources.
-- Record source URLs and retrieval dates.
-
-### 7. Draft Slide Headers as Bullets
-
-- Produce a bullet list of slide headers before writing slide bodies.
-- Keep at least five headers unless the user specifies a different count.
-- Attach one line of intent per header.
-
-### 8. Deep-Dive Each Header and Build Slide Plan
-
-- Expand each header into one slide message.
-- Keep each slide to 2-5 concise bullet points.
-- Choose at least one structured format per content slide:
-  - bullets,
-  - table,
-  - diagram/chart image.
-- Attach source links to factual claims.
-- Build the plan JSON using `references/deck-plan-schema.md`.
-- Ensure plan input passed to `build_pptx.py` is a valid JSON file path.
-
-### 9. Plan Visuals Early and Aggressively
+### 10. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -242,7 +258,7 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is a valid JSON file path (or use inline quick args without JSON).
 
-### 10. Build Deck from Template
+### 11. Build Deck from Template
 
 - Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
 - Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
@@ -273,37 +289,50 @@ scripts/add_slide.py \
   --language ja
 ```
 
-### 11. Validate Density and Visual Coverage
+### 12. Validate Quality Gates Automatically
 
-- Run `scripts/lint_pptx.py` after generation.
+- Run `scripts/lint_pptx.py` after generation with language and style checks.
 - Example:
 
 ```bash
 WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
 scripts/lint_pptx.py \
   --input "$WORK_DIR/final-deck.pptx" \
+  --language ja \
+  --require-sources-notes \
   --fail-on-warning
 ```
 
 - If warnings exist, fix by:
   - splitting crowded slides,
   - reducing bullet count,
-  - replacing text blocks with charts/diagrams/tables.
+  - replacing text blocks with charts/diagrams/tables,
+  - reducing font/style variation,
+  - improving margins/alignment/layout balance.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 12. Enforce Language Consistency
+### 13. Perform Manual Visual Polish Pass
+
+- Check spacing and alignment against template guides.
+- Check image quality and crop consistency.
+- Check chart simplification (remove unnecessary decoration).
+- Check icon/line/shadow style consistency.
+
+### 14. Enforce Language and Source Consistency
 
 - Confirm `plan.language` matches prompt language.
 - Confirm all slide text and chart labels match `plan.language`.
 - For Japanese charts, confirm selected font can render all labels (no tofu boxes).
+- Keep source sections in speaker notes with the same `Sources:` style.
 
-### 13. Perform Final Consistency Pass
+### 15. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
-- Check terminology and numeric consistency.
+- Check terminology, unit, and timeline consistency.
 - Check that visual usage is sufficient and text density is controlled.
+- Check that every slide message supports the final decision/action.
 
-### 14. Save and Report
+### 16. Save and Report
 
 - Save final deck and return absolute path.
 - Return:
@@ -311,13 +340,14 @@ scripts/lint_pptx.py \
   - output `.pptx` absolute path,
   - staged template absolute path,
   - source URL list,
-  - summary of major revisions made in quality pass.
+  - summary of major revisions made in quality pass,
+  - layout-intent summary from build logs.
 
 ## Script Quick Reference
 
 - `scripts/build_pptx.py`: Initialize output `.pptx` and orchestrate sequential append.
 - `scripts/add_slide.py`: Append one title/content slide to an existing `.pptx`.
-- `scripts/lint_pptx.py`: Detect crowded and unstructured slides (bullets/table/visual checks).
+- `scripts/lint_pptx.py`: Detect density, layout bias, typography inconsistency, margin/guide issues, and source/language format drift.
 - `scripts/make_chart.py`: Generate chart PNG files from simple JSON specs.
 - `scripts/ensure_workdir_key.bash`: Create/reuse `THEME_TEMPLATE_PPT_WORK_KEY` in environment.
 - `scripts/validate_json.py`: Validate JSON input files before build/chart runs.
