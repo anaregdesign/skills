@@ -10,6 +10,7 @@ description: Provide and enforce Python execution environments with uv under thi
 - Always place projects under `<skill-dir>/assets/vX.Y.Z`.
 - Resolve `<skill-dir>` by finding the full path of `SKILL.md` first, then use its parent directory.
 - Never depend on caller `cwd` to choose project location.
+- Do not run only `source .../python-venv.<shell>`; always execute an action in the same command.
 - Before any Python execution, always run environment creation/selection first.
 - Never run `python`/`python3` directly before `python_venv use` or `python_venv run`.
 - If the requested version does not exist yet, create it and activate it.
@@ -54,6 +55,18 @@ When asked to execute Python, perform the following in order:
    - Otherwise `3.12.8`.
 2. Run `python_venv run <version> <python-args...>`.
 3. Only after step 2, report Python output.
+
+## One-Liner Command Pattern
+
+Run the action in the same command where the script is loaded.
+
+```bash
+bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv run 3.12.8 -c "import sys; print(sys.version)"'
+```
+
+```zsh
+zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv add 3.12.8 requests'
+```
 
 ## Shell-Specific Scripts
 

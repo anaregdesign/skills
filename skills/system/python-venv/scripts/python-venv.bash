@@ -229,6 +229,6 @@ python_venv() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "Source this file instead of executing it: source scripts/python-venv.bash" >&2
-  exit 1
+  python_venv "$@"
+  exit $?
 fi

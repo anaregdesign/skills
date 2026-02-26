@@ -230,3 +230,8 @@ python_venv() {
       ;;
   esac
 }
+
+if [[ "${ZSH_EVAL_CONTEXT}" != *:file ]]; then
+  python_venv "$@"
+  exit $?
+fi
