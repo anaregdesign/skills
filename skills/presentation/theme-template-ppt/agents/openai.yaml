@@ -1,4 +1,4 @@
 interface:
   display_name: "Theme Template PPT"
   short_description: "Build template-based decks with master-layout mapping"
-  default_prompt: "Use $theme-template-ppt to run scripts/ensure_workdir_key.bash first, inspect slide masters on every run, auto-select and auto-create missing master layouts as needed, write JSON specs to files (not inline args), and build a final deck from assets/template.pptx in ~/.foundry_local_playground/outputs/pptx/<work_key>/ while reusing THEME_TEMPLATE_PPT_WORK_KEY within a thread."
+  default_prompt: "Use $theme-template-ppt to run scripts/ensure_workdir_key.bash first, inspect slide masters on every run, auto-select and auto-create missing master layouts as needed, and if MCP server mcp-mermaid is connected proactively generate architecture diagrams through it and place them into slide visuals. Write JSON specs to files (not inline args), and build a final deck from assets/template.pptx in ~/.foundry_local_playground/outputs/pptx/<work_key>/ while reusing THEME_TEMPLATE_PPT_WORK_KEY within a thread."

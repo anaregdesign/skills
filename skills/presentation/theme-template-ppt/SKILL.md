@@ -36,6 +36,8 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Control section order via `plan.auto_slide_order` (`agenda,title,content,summary` by default).
 - The runtime template can be replaced for each use; always inspect and validate masters every run.
 - If required layout profiles are missing, create and add them to the slide master before appending slides.
+- If MCP server `mcp-mermaid` is connected, proactively generate architecture/process diagrams through it and prefer those visuals over text-only explanations.
+- Save Mermaid-rendered diagram files under the active work directory (for example `"$WORK_DIR/assets/generated/"`) and reference them from slide `visual.path`.
 - Never pass non-JSON files to:
   - `scripts/make_chart.py --spec`
   - `scripts/build_pptx.py --plan`
@@ -223,6 +225,9 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
 - Use tables for comparisons, KPI snapshots, and option matrices.
+- If `mcp-mermaid` is connected, create architecture/system-flow diagrams with it first for topology, component interaction, and sequence-style content.
+- Prefer Mermaid-generated diagrams over ad-hoc text blocks when both can explain the same content.
+- Export Mermaid outputs to stable file paths under the work directory and attach them via each slide's `visual.path`.
 - Generate charts/figures with `scripts/make_chart.py` when needed.
 - Build chart JSON from `references/chart-spec-schema.md`.
 - Save generated images to a predictable folder (for example `assets/generated/`).
