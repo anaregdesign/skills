@@ -7,6 +7,7 @@ Usage:
   python_venv activate <X.Y.Z>
   python_venv deactivate
   python_venv use <X.Y.Z>
+  python_venv run <X.Y.Z> <python-args...>
   python_venv add <X.Y.Z> <dep...>
   python_venv path <X.Y.Z>
 EOF
@@ -53,7 +54,7 @@ python_venv__ensure() {
 
   (
     cd "$env_dir" &&
-      uv venv --python "$version"
+      uv venv --python "$version" --allow-existing
   ) || return 1
 }
 
@@ -113,6 +114,25 @@ python_venv__add() {
   ) || return 1
 }
 
+python_venv__run() {
+  local version="$1"
+  local target_venv
+
+  shift
+  if [[ -z "$version" || "$#" -eq 0 ]]; then
+    echo "Usage: python_venv run <X.Y.Z> <python-args...>" >&2
+    return 1
+  fi
+
+  python_venv__ensure "$version" || return 1
+  target_venv="$(python_venv__env_dir "$version")/.venv"
+  if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
+    python_venv__deactivate || return 1
+  fi
+  python_venv__activate "$version" || return 1
+  python "$@"
+}
+
 python_venv() {
   local action="${1:-}"
   local version
@@ -154,6 +174,15 @@ python_venv() {
         python_venv__deactivate || return 1
       fi
       python_venv__activate "$version"
+      ;;
+    run)
+      version="${2:-}"
+      [[ -n "$version" && "$#" -ge 3 ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      shift 2
+      python_venv__run "$version" "$@"
       ;;
     add)
       version="${2:-}"

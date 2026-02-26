@@ -6,6 +6,7 @@ function __python_venv_usage
     printf "  python_venv activate <X.Y.Z>\n"
     printf "  python_venv deactivate\n"
     printf "  python_venv use <X.Y.Z>\n"
+    printf "  python_venv run <X.Y.Z> <python-args...>\n"
     printf "  python_venv add <X.Y.Z> <dep...>\n"
     printf "  python_venv path <X.Y.Z>\n"
 end
@@ -53,7 +54,7 @@ function __python_venv_ensure --argument-names version
 
     set -l previous_dir (pwd)
     cd "$env_dir"; or return 1
-    uv venv --python "$version"
+    uv venv --python "$version" --allow-existing
     set -l status_code $status
     cd "$previous_dir"; or return 1
     return $status_code
@@ -115,6 +116,22 @@ function __python_venv_add --argument-names version
     return $status_code
 end
 
+function __python_venv_run --argument-names version
+    set -l python_args $argv[2..-1]
+    if test -z "$version"; or test (count $python_args) -eq 0
+        echo "Usage: python_venv run <X.Y.Z> <python-args...>" >&2
+        return 1
+    end
+
+    __python_venv_ensure "$version"; or return 1
+    set -l target_venv (__python_venv_env_dir "$version")/.venv
+    if test -n "$VIRTUAL_ENV"; and test "$VIRTUAL_ENV" != "$target_venv"
+        __python_venv_deactivate; or return 1
+    end
+    __python_venv_activate "$version"; or return 1
+    python $python_args
+end
+
 function python_venv
     if test (count $argv) -lt 1
         __python_venv_usage >&2
@@ -157,6 +174,12 @@ function python_venv
                 __python_venv_deactivate; or return 1
             end
             __python_venv_activate "$version"
+        case run
+            if test -z "$version"; or test (count $argv) -lt 3
+                __python_venv_usage >&2
+                return 1
+            end
+            __python_venv_run "$version" $argv[3..-1]
         case add
             if test -z "$version"; or test (count $argv) -lt 3
                 __python_venv_usage >&2
