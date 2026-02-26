@@ -1,0 +1,4 @@
+interface:
+  display_name: "Theme Template PPT"
+  short_description: "Build PowerPoint from theme and templates"
+  default_prompt: "Use $theme-template-ppt to create a slide deck from a theme and assets template."

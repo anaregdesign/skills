@@ -35,4 +35,7 @@ Each `<skill-name>` directory must contain a skill that conforms to the
 | Tag |
 |-----|
 | example |
+| finance |
 | japanese-business |
+| presentation |
+| system |
