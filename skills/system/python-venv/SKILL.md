@@ -8,6 +8,7 @@ description: Provide and enforce Python execution environments with uv under thi
 ## Hard Rules
 
 - Always place projects under `<skill-dir>/assets/vX.Y.Z`.
+- Resolve `<skill-dir>` by finding the full path of `SKILL.md` first, then use its parent directory.
 - Never depend on caller `cwd` to choose project location.
 - Before any Python execution, always run environment creation/selection first.
 - Never run `python`/`python3` directly before `python_venv use` or `python_venv run`.

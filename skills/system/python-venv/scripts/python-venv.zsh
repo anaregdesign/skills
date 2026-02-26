@@ -14,14 +14,36 @@ EOF
 }
 
 python_venv__skill_dir() {
-  local script_dir
+  local script_dir current_dir parent_dir
   script_dir="${PYTHON_VENV_ZSH_SCRIPT_PATH:A:h}"
-  print -r -- "${script_dir:h}"
+  current_dir="$script_dir"
+
+  while true; do
+    if [[ -f "$current_dir/SKILL.md" ]]; then
+      print -r -- "$current_dir"
+      return 0
+    fi
+
+    if [[ "$current_dir" == "/" ]]; then
+      break
+    fi
+
+    parent_dir="${current_dir:h}"
+    if [[ -z "$parent_dir" || "$parent_dir" == "$current_dir" ]]; then
+      break
+    fi
+    current_dir="$parent_dir"
+  done
+
+  print -u2 -- "SKILL.md not found while resolving skill directory from: ${PYTHON_VENV_ZSH_SCRIPT_PATH}"
+  return 1
 }
 
 python_venv__env_dir() {
   local version="$1"
-  print -r -- "$(python_venv__skill_dir)/assets/v${version}"
+  local skill_dir
+  skill_dir="$(python_venv__skill_dir)" || return 1
+  print -r -- "${skill_dir}/assets/v${version}"
 }
 
 python_venv__require_uv() {
@@ -41,7 +63,7 @@ python_venv__ensure() {
   fi
 
   python_venv__require_uv || return 1
-  env_dir="$(python_venv__env_dir "$version")"
+  env_dir="$(python_venv__env_dir "$version")" || return 1
   mkdir -p "$env_dir" || return 1
 
   if [[ ! -f "$env_dir/pyproject.toml" ]]; then
@@ -67,7 +89,7 @@ python_venv__activate() {
     return 1
   fi
 
-  env_dir="$(python_venv__env_dir "$version")"
+  env_dir="$(python_venv__env_dir "$version")" || return 1
   activate_path="$env_dir/.venv/bin/activate"
 
   if [[ ! -f "$activate_path" ]]; then
@@ -102,7 +124,7 @@ python_venv__add() {
   fi
 
   python_venv__ensure "$version" || return 1
-  env_dir="$(python_venv__env_dir "$version")"
+  env_dir="$(python_venv__env_dir "$version")" || return 1
 
   (
     cd "$env_dir" &&
@@ -123,7 +145,8 @@ python_venv__run() {
   fi
 
   python_venv__ensure "$version" || return 1
-  target_venv="$(python_venv__env_dir "$version")/.venv"
+  target_venv="$(python_venv__env_dir "$version")" || return 1
+  target_venv="${target_venv}/.venv"
   if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
     python_venv__deactivate || return 1
   fi
@@ -151,7 +174,8 @@ python_venv() {
         python_venv__usage >&2
         return 1
       }
-      target_venv="$(python_venv__env_dir "$version")/.venv"
+      target_venv="$(python_venv__env_dir "$version")" || return 1
+      target_venv="${target_venv}/.venv"
       if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
         python_venv__deactivate || return 1
       fi
@@ -167,7 +191,8 @@ python_venv() {
         return 1
       }
       python_venv__ensure "$version" || return 1
-      target_venv="$(python_venv__env_dir "$version")/.venv"
+      target_venv="$(python_venv__env_dir "$version")" || return 1
+      target_venv="${target_venv}/.venv"
       if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
         python_venv__deactivate || return 1
       fi

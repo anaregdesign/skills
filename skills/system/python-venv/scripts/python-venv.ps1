@@ -12,7 +12,21 @@ Usage:
 }
 
 function Get-PythonVenvSkillDir {
-    (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+    $currentDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+    while ($true) {
+        $skillMdPath = Join-Path $currentDir "SKILL.md"
+        if (Test-Path -LiteralPath $skillMdPath) {
+            return $currentDir
+        }
+
+        $parentDir = Split-Path -Path $currentDir -Parent
+        if ([string]::IsNullOrWhiteSpace($parentDir) -or $parentDir -eq $currentDir) {
+            break
+        }
+        $currentDir = $parentDir
+    }
+
+    throw "SKILL.md not found while resolving skill directory from: $PSScriptRoot"
 }
 
 function Get-PythonVenvDir {

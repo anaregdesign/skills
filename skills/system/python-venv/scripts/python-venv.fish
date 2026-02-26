@@ -16,14 +16,33 @@ function __python_venv_skill_dir
     set -l previous_dir (pwd)
 
     cd "$script_dir"; or return 1
-    set -l abs_script_dir (pwd)
+    set -l current_dir (pwd)
     cd "$previous_dir"; or return 1
 
-    dirname "$abs_script_dir"
+    while true
+        if test -f "$current_dir/SKILL.md"
+            printf "%s\n" "$current_dir"
+            return 0
+        end
+
+        if test "$current_dir" = "/"
+            break
+        end
+
+        set -l parent_dir (dirname "$current_dir")
+        if test -z "$parent_dir"; or test "$parent_dir" = "$current_dir"
+            break
+        end
+        set current_dir "$parent_dir"
+    end
+
+    echo "SKILL.md not found while resolving skill directory from: $PYTHON_VENV_FISH_SCRIPT_PATH" >&2
+    return 1
 end
 
 function __python_venv_env_dir --argument-names version
-    printf "%s/assets/v%s\n" (__python_venv_skill_dir) "$version"
+    set -l skill_dir (__python_venv_skill_dir); or return 1
+    printf "%s/assets/v%s\n" "$skill_dir" "$version"
 end
 
 function __python_venv_require_uv
@@ -40,7 +59,7 @@ function __python_venv_ensure --argument-names version
     end
 
     __python_venv_require_uv; or return 1
-    set -l env_dir (__python_venv_env_dir "$version")
+    set -l env_dir (__python_venv_env_dir "$version"); or return 1
     mkdir -p "$env_dir"; or return 1
 
     if not test -f "$env_dir/pyproject.toml"
@@ -66,7 +85,7 @@ function __python_venv_activate --argument-names version
         return 1
     end
 
-    set -l env_dir (__python_venv_env_dir "$version")
+    set -l env_dir (__python_venv_env_dir "$version"); or return 1
     set -l activate_path "$env_dir/.venv/bin/activate.fish"
 
     if not test -f "$activate_path"
@@ -98,7 +117,7 @@ function __python_venv_add --argument-names version
     end
 
     __python_venv_ensure "$version"; or return 1
-    set -l env_dir (__python_venv_env_dir "$version")
+    set -l env_dir (__python_venv_env_dir "$version"); or return 1
 
     set -l previous_dir (pwd)
     cd "$env_dir"; or return 1
@@ -124,7 +143,8 @@ function __python_venv_run --argument-names version
     end
 
     __python_venv_ensure "$version"; or return 1
-    set -l target_venv (__python_venv_env_dir "$version")/.venv
+    set -l target_venv (__python_venv_env_dir "$version"); or return 1
+    set target_venv "$target_venv/.venv"
     if test -n "$VIRTUAL_ENV"; and test "$VIRTUAL_ENV" != "$target_venv"
         __python_venv_deactivate; or return 1
     end
@@ -156,7 +176,8 @@ function python_venv
                 __python_venv_usage >&2
                 return 1
             end
-            set -l target_venv (__python_venv_env_dir "$version")/.venv
+            set -l target_venv (__python_venv_env_dir "$version"); or return 1
+            set target_venv "$target_venv/.venv"
             if test -n "$VIRTUAL_ENV"; and test "$VIRTUAL_ENV" != "$target_venv"
                 __python_venv_deactivate; or return 1
             end
@@ -169,7 +190,8 @@ function python_venv
                 return 1
             end
             __python_venv_ensure "$version"; or return 1
-            set -l target_venv (__python_venv_env_dir "$version")/.venv
+            set -l target_venv (__python_venv_env_dir "$version"); or return 1
+            set target_venv "$target_venv/.venv"
             if test -n "$VIRTUAL_ENV"; and test "$VIRTUAL_ENV" != "$target_venv"
                 __python_venv_deactivate; or return 1
             end
