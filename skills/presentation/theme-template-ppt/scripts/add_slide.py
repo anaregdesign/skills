@@ -201,9 +201,9 @@ def append_title_slide(
     raw_spec: dict[str, Any],
     fallback_layout: int,
     prefer_master_layouts: bool,
-) -> tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool, dict[str, Any]]:
     requested_layout_name = str(raw_spec.get("layout_name", "")).strip()
-    layout, selection_mode = pick_layout(
+    layout, selection_mode, selection_detail = pick_layout(
         prs,
         layouts,
         raw_spec.get("layout"),
@@ -230,7 +230,7 @@ def append_title_slide(
     add_notes(slide, [str(item) for item in title_sources], [str(item) for item in title_notes])
 
     used_master_auto = selection_mode == "master_auto"
-    return used_master_auto, False, False
+    return used_master_auto, False, False, selection_detail
 
 
 def append_content_slide(
@@ -241,9 +241,9 @@ def append_content_slide(
     fallback_layout: int,
     strict_images: bool,
     prefer_master_layouts: bool,
-) -> tuple[bool, bool, bool]:
+) -> tuple[bool, bool, bool, dict[str, Any]]:
     spec = normalize_slide_spec(raw_spec, 1)
-    layout, selection_mode = pick_layout(
+    layout, selection_mode, selection_detail = pick_layout(
         prs,
         layouts,
         spec["layout"],
@@ -255,6 +255,7 @@ def append_content_slide(
         has_table=bool(spec["table"]),
         has_visual=bool(spec["visual"].get("path")),
         has_subtitle=bool(spec["subtitle"]),
+        bullet_count=len(spec["bullets"]),
     )
 
     slide = prs.slides.add_slide(layout)
@@ -266,7 +267,7 @@ def append_content_slide(
     add_notes(slide, spec["sources"], spec["speaker_notes"])
 
     used_master_auto = selection_mode == "master_auto"
-    return used_master_auto, table_added, visual_added
+    return used_master_auto, table_added, visual_added, selection_detail
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -288,7 +289,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     prefer_master_layouts = not args.no_prefer_master_layouts
 
     if args.kind == "title":
-        used_master_auto, table_added, visual_added = append_title_slide(
+        used_master_auto, table_added, visual_added, selection_detail = append_title_slide(
             prs,
             layouts,
             raw_spec,
@@ -296,7 +297,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             prefer_master_layouts,
         )
     else:
-        used_master_auto, table_added, visual_added = append_content_slide(
+        used_master_auto, table_added, visual_added, selection_detail = append_content_slide(
             prs,
             layouts,
             raw_spec,
@@ -314,6 +315,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "used_master_auto": used_master_auto,
         "table_added": table_added,
         "visual_added": visual_added,
+        "layout_intent": selection_detail,
     }
 
 

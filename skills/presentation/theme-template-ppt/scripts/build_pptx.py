@@ -30,6 +30,7 @@ BODY_PLACEHOLDERS = {
         getattr(PP_PLACEHOLDER, "OBJECT", None),
         getattr(PP_PLACEHOLDER, "TEXT", None),
         getattr(PP_PLACEHOLDER, "VERTICAL_BODY", None),
+        getattr(PP_PLACEHOLDER, "VERTICAL_OBJECT", None),
     )
     if value is not None
 }
@@ -51,6 +52,38 @@ SUBTITLE_PLACEHOLDERS = {
     if value is not None
 }
 
+VISUAL_PLACEHOLDERS = {
+    value
+    for value in (
+        getattr(PP_PLACEHOLDER, "PICTURE", None),
+        getattr(PP_PLACEHOLDER, "CHART", None),
+        getattr(PP_PLACEHOLDER, "MEDIA_CLIP", None),
+        getattr(PP_PLACEHOLDER, "BITMAP", None),
+        getattr(PP_PLACEHOLDER, "ORG_CHART", None),
+        getattr(PP_PLACEHOLDER, "SLIDE_IMAGE", None),
+    )
+    if value is not None
+}
+
+TABLE_PLACEHOLDERS = {
+    value
+    for value in (
+        getattr(PP_PLACEHOLDER, "TABLE", None),
+    )
+    if value is not None
+}
+
+NON_CONTENT_PLACEHOLDERS = {
+    value
+    for value in (
+        getattr(PP_PLACEHOLDER, "DATE", None),
+        getattr(PP_PLACEHOLDER, "FOOTER", None),
+        getattr(PP_PLACEHOLDER, "HEADER", None),
+        getattr(PP_PLACEHOLDER, "SLIDE_NUMBER", None),
+    )
+    if value is not None
+}
+
 VISUAL_LAYOUT_KEYWORDS = (
     "picture",
     "photo",
@@ -66,6 +99,15 @@ TABLE_LAYOUT_KEYWORDS = (
     "table",
     "matrix",
     "comparison",
+)
+
+COVER_LAYOUT_KEYWORDS = (
+    "title slide",
+    "cover",
+)
+
+SECTION_LAYOUT_KEYWORDS = (
+    "section",
 )
 
 AUTO_SLIDE_ORDER_DEFAULT = ("agenda", "title", "content", "summary")
@@ -838,9 +880,146 @@ def ensure_required_master_layouts(
     }
 
 
+def _placeholder_type_name(value: Any) -> str:
+    return str(getattr(value, "name", value)).strip().lower()
+
+
+def _is_content_placeholder(placeholder_type: Any) -> bool:
+    if (
+        placeholder_type in TITLE_PLACEHOLDERS
+        or placeholder_type in SUBTITLE_PLACEHOLDERS
+        or placeholder_type in NON_CONTENT_PLACEHOLDERS
+    ):
+        return False
+    return (
+        placeholder_type in BODY_PLACEHOLDERS
+        or placeholder_type in VISUAL_PLACEHOLDERS
+        or placeholder_type in TABLE_PLACEHOLDERS
+    )
+
+
+def _estimate_column_count(placeholder_infos: list[dict[str, Any]], slide_width: int) -> int:
+    if not placeholder_infos:
+        return 0
+    centers = sorted(
+        item["left"] + item["width"] // 2
+        for item in placeholder_infos
+        if item["width"] > 0
+    )
+    if not centers:
+        return 0
+
+    threshold = max(int(slide_width * 0.18), 1)
+    columns = [centers[0]]
+    for center in centers[1:]:
+        if abs(center - columns[-1]) > threshold:
+            columns.append(center)
+    return len(columns)
+
+
+def _infer_title_position(
+    title_infos: list[dict[str, Any]], slide_width: int, slide_height: int
+) -> str:
+    if not title_infos:
+        return "none"
+
+    title = min(title_infos, key=lambda item: item["top"])
+    if title["top"] > int(slide_height * 0.40):
+        return "bottom"
+    if title["left"] > int(slide_width * 0.55):
+        return "right"
+    if title["width"] < int(slide_width * 0.40) and title["height"] > int(slide_height * 0.60):
+        return "vertical"
+    return "top"
+
+
+def _extract_layout_composition(
+    layout: Any,
+    *,
+    name_lower: str,
+    slide_width: int,
+    slide_height: int,
+) -> dict[str, Any]:
+    placeholder_infos: list[dict[str, Any]] = []
+    for placeholder in layout.placeholders:
+        try:
+            placeholder_type = placeholder.placeholder_format.type
+        except Exception:
+            continue
+        placeholder_infos.append(
+            {
+                "type": placeholder_type,
+                "type_name": _placeholder_type_name(placeholder_type),
+                "left": int(getattr(placeholder, "left", 0)),
+                "top": int(getattr(placeholder, "top", 0)),
+                "width": int(getattr(placeholder, "width", 0)),
+                "height": int(getattr(placeholder, "height", 0)),
+            }
+        )
+
+    title_infos = [item for item in placeholder_infos if item["type"] in TITLE_PLACEHOLDERS]
+    body_infos = [item for item in placeholder_infos if item["type"] in BODY_PLACEHOLDERS]
+    visual_infos = [item for item in placeholder_infos if item["type"] in VISUAL_PLACEHOLDERS]
+    table_infos = [item for item in placeholder_infos if item["type"] in TABLE_PLACEHOLDERS]
+    content_infos = [item for item in placeholder_infos if _is_content_placeholder(item["type"])]
+
+    column_count = _estimate_column_count(content_infos, slide_width)
+    title_position = _infer_title_position(title_infos, slide_width, slide_height)
+
+    caption_like = False
+    if visual_infos and body_infos:
+        for body in body_infos:
+            if body["top"] > int(slide_height * 0.62) or body["height"] < int(slide_height * 0.25):
+                caption_like = True
+                break
+
+    tags: set[str] = set()
+    if "blank" in name_lower:
+        tags.add("blank")
+    if any(token in name_lower for token in COVER_LAYOUT_KEYWORDS):
+        tags.add("cover")
+    if "title" in name_lower:
+        tags.add("title")
+    if any(token in name_lower for token in SECTION_LAYOUT_KEYWORDS):
+        tags.add("section")
+    if any(token in name_lower for token in VISUAL_LAYOUT_KEYWORDS):
+        tags.add("visual_hint")
+    if any(token in name_lower for token in TABLE_LAYOUT_KEYWORDS):
+        tags.add("table_hint")
+    if "caption" in name_lower or caption_like:
+        tags.add("caption")
+    if "vertical" in name_lower or title_position in {"right", "vertical"}:
+        tags.add("vertical")
+    if column_count >= 2:
+        tags.add("split")
+    if len(content_infos) == 1:
+        tags.add("single_content")
+    if len(content_infos) >= 2:
+        tags.add("multi_content")
+    if visual_infos:
+        tags.add("visual_slot")
+    if table_infos:
+        tags.add("table_slot")
+    if title_infos and not content_infos:
+        tags.add("title_only")
+
+    return {
+        "placeholder_count": len(placeholder_infos),
+        "content_placeholder_count": len(content_infos),
+        "body_placeholder_count": len(body_infos),
+        "visual_placeholder_count": len(visual_infos),
+        "table_placeholder_count": len(table_infos),
+        "column_count": column_count,
+        "title_position": title_position,
+        "tags": sorted(tags),
+    }
+
+
 def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen_layout_ids: set[int] = set()
+    slide_width = int(prs.slide_width)
+    slide_height = int(prs.slide_height)
 
     for master_index, master in enumerate(prs.slide_masters):
         for layout_index, layout in enumerate(master.slide_layouts):
@@ -851,6 +1030,12 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
 
             name = str(getattr(layout, "name", "") or "").strip()
             name_lower = name.lower()
+            composition = _extract_layout_composition(
+                layout,
+                name_lower=name_lower,
+                slide_width=slide_width,
+                slide_height=slide_height,
+            )
             placeholder_types: set[Any] = set()
             for placeholder in layout.placeholders:
                 try:
@@ -868,6 +1053,8 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
                     "has_title": bool(placeholder_types & TITLE_PLACEHOLDERS),
                     "has_subtitle": bool(placeholder_types & SUBTITLE_PLACEHOLDERS),
                     "has_body": bool(placeholder_types & BODY_PLACEHOLDERS),
+                    "layout_key": f"{master_index}:{layout_index}:{name_lower}",
+                    **composition,
                 }
             )
 
@@ -887,6 +1074,13 @@ def build_layout_catalog(layouts: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "has_title": item["has_title"],
                 "has_subtitle": item["has_subtitle"],
                 "has_body": item["has_body"],
+                "content_placeholder_count": item["content_placeholder_count"],
+                "body_placeholder_count": item["body_placeholder_count"],
+                "visual_placeholder_count": item["visual_placeholder_count"],
+                "table_placeholder_count": item["table_placeholder_count"],
+                "column_count": item["column_count"],
+                "title_position": item["title_position"],
+                "tags": item["tags"],
             }
         )
     return catalog
@@ -913,55 +1107,277 @@ def inspect_template_layouts(args: argparse.Namespace) -> dict[str, Any]:
     return report
 
 
-def score_layout_candidate(
-    candidate: dict[str, Any],
+def count_layout_usage(prs: Presentation, layouts: list[dict[str, Any]]) -> dict[str, int]:
+    by_layout_id: dict[int, str] = {}
+    by_layout_name: dict[str, str] = {}
+    for item in layouts:
+        key = item["layout_key"]
+        by_layout_id[id(item["layout"])] = key
+        by_layout_name.setdefault(item["name_lower"], key)
+
+    usage: dict[str, int] = {}
+    for slide in prs.slides:
+        try:
+            slide_layout = slide.slide_layout
+        except Exception:
+            continue
+
+        layout_key = by_layout_id.get(id(slide_layout))
+        if layout_key is None:
+            layout_name = str(getattr(slide_layout, "name", "") or "").strip().lower()
+            layout_key = by_layout_name.get(layout_name)
+        if layout_key is None:
+            continue
+        usage[layout_key] = usage.get(layout_key, 0) + 1
+    return usage
+
+
+def infer_slide_layout_intent(
     *,
     is_title_slide: bool,
     has_bullets: bool,
     has_table: bool,
     has_visual: bool,
     has_subtitle: bool,
+    bullet_count: int,
+) -> dict[str, Any]:
+    if is_title_slide:
+        return {
+            "key": "title_cover",
+            "description": "Title/cover page with optional subtitle and minimal body placeholders.",
+            "target_columns": 0,
+            "requires_title": True,
+            "requires_body": False,
+            "expects_visual": False,
+            "expects_table": False,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"cover", "title_only", "title"},
+            "discouraged_tags": {"blank", "section", "split", "vertical"},
+        }
+
+    if has_table and has_visual:
+        return {
+            "key": "hybrid_data",
+            "description": "Hybrid data page combining visual and tabular information side-by-side.",
+            "target_columns": 2,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": True,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"split", "multi_content", "visual_hint", "table_hint"},
+            "discouraged_tags": {"blank", "title_only"},
+        }
+
+    if has_table:
+        if has_bullets:
+            return {
+                "key": "table_comparison",
+                "description": "Comparison page with table and supporting bullets.",
+                "target_columns": 2,
+                "requires_title": True,
+                "requires_body": True,
+                "expects_visual": False,
+                "expects_table": True,
+                "prefers_subtitle": has_subtitle,
+                "preferred_tags": {"table_hint", "split", "multi_content"},
+                "discouraged_tags": {"blank", "title_only"},
+            }
+        return {
+            "key": "table_focus",
+            "description": "Table-focused page with a single structured data block.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": True,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"table_hint", "single_content"},
+            "discouraged_tags": {"blank", "title_only"},
+        }
+
+    if has_visual and has_bullets:
+        return {
+            "key": "visual_split",
+            "description": "Text + visual page with clear split composition.",
+            "target_columns": 2,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": False,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"visual_hint", "split", "multi_content", "caption"},
+            "discouraged_tags": {"blank", "title_only"},
+        }
+
+    if has_visual:
+        return {
+            "key": "visual_focus",
+            "description": "Visual-led page with optional short caption.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": False,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"visual_hint", "caption", "visual_slot"},
+            "discouraged_tags": {"blank", "split"},
+        }
+
+    if has_bullets and bullet_count >= 4:
+        return {
+            "key": "text_dense",
+            "description": "Text-dense page with 4+ bullets requiring generous body area.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": False,
+            "prefers_subtitle": has_subtitle,
+            "preferred_tags": {"single_content", "title"},
+            "discouraged_tags": {"blank", "title_only", "section"},
+        }
+
+    return {
+        "key": "text_brief",
+        "description": "Short text page with concise bullets.",
+        "target_columns": 1,
+        "requires_title": True,
+        "requires_body": True,
+        "expects_visual": False,
+        "expects_table": False,
+        "prefers_subtitle": has_subtitle,
+        "preferred_tags": {"single_content", "section", "title"},
+        "discouraged_tags": {"blank", "title_only"},
+    }
+
+
+def _layout_usage_penalty(usage_count: int, best_gap: int) -> int:
+    if usage_count <= 0:
+        return 0
+    if best_gap <= 12:
+        return usage_count * 7
+    if best_gap <= 22:
+        return usage_count * 4
+    if best_gap <= 30:
+        return usage_count * 2
+    return 0
+
+
+def _score_intent_tags(
+    tags: set[str], preferred_tags: set[str], discouraged_tags: set[str]
+) -> int:
+    score = 0
+    for tag in preferred_tags:
+        if tag in tags:
+            score += 8
+    for tag in discouraged_tags:
+        if tag in tags:
+            score -= 10
+    return score
+
+
+def score_layout_candidate(
+    candidate: dict[str, Any],
+    *,
+    intent: dict[str, Any],
+    bullet_count: int,
+    has_subtitle: bool,
 ) -> int:
     name = candidate["name_lower"]
+    tags = set(candidate.get("tags", []))
+    column_count = int(candidate.get("column_count", 0))
+    body_slots = int(candidate.get("body_placeholder_count", 0))
+    visual_slots = int(candidate.get("visual_placeholder_count", 0))
+    table_slots = int(candidate.get("table_placeholder_count", 0))
+    title_position = str(candidate.get("title_position", "none"))
     score = 0
 
-    if "blank" in name:
+    requires_title = bool(intent.get("requires_title"))
+    requires_body = bool(intent.get("requires_body"))
+    expects_visual = bool(intent.get("expects_visual"))
+    expects_table = bool(intent.get("expects_table"))
+    preferred_tags = set(intent.get("preferred_tags", set()))
+    discouraged_tags = set(intent.get("discouraged_tags", set()))
+    target_columns = int(intent.get("target_columns", 1))
+    intent_key = str(intent.get("key", ""))
+
+    if "blank" in tags or "blank" in name:
+        score -= 80
+
+    if requires_title and candidate["has_title"]:
+        score += 26
+    elif requires_title and not candidate["has_title"]:
+        score -= 34
+    if has_subtitle and candidate["has_subtitle"]:
+        score += 16
+    elif has_subtitle and not candidate["has_subtitle"]:
+        score -= 10
+
+    if requires_body and candidate["has_body"]:
+        score += 24
+    elif requires_body and not candidate["has_body"]:
         score -= 30
 
-    if is_title_slide:
-        if "title" in name or "cover" in name:
-            score += 60
-        if candidate["has_title"]:
-            score += 20
-        if candidate["has_subtitle"] or has_subtitle:
-            score += 15
+    if expects_visual:
+        if visual_slots > 0:
+            score += 30
+        if "visual_hint" in tags:
+            score += 16
+        if visual_slots == 0 and "visual_hint" not in tags:
+            score -= 24
+    else:
+        if visual_slots > 0 and intent_key in {"text_dense", "text_brief"}:
+            score -= 6
+
+    if expects_table:
+        if table_slots > 0:
+            score += 30
+        if "table_hint" in tags:
+            score += 16
+        if table_slots == 0 and "table_hint" not in tags:
+            score -= 24
+    else:
+        if table_slots > 0 and intent_key in {"text_dense", "text_brief"}:
+            score -= 6
+
+    score += _score_intent_tags(tags, preferred_tags, discouraged_tags)
+
+    if intent_key == "title_cover":
         if candidate["has_body"]:
+            score -= 16
+        if title_position == "top":
+            score += 6
+        if "vertical" in tags:
             score -= 8
         return score
 
-    if candidate["has_title"]:
-        score += 14
-    if has_subtitle and candidate["has_subtitle"]:
-        score += 10
-    if has_bullets and candidate["has_body"]:
-        score += 18
-    if "title and content" in name:
-        score += 10
-
-    if has_visual:
-        if any(token in name for token in VISUAL_LAYOUT_KEYWORDS):
-            score += 38
-        if "content" in name:
-            score += 8
-
-    if has_table:
-        if any(token in name for token in TABLE_LAYOUT_KEYWORDS):
-            score += 40
-        if "content" in name:
-            score += 8
-
-    if not has_visual and not has_table and has_bullets and "content" in name:
+    if intent_key == "text_dense" and body_slots >= 2:
         score += 8
+    if intent_key == "text_brief" and bullet_count <= 2 and "section" in tags:
+        score += 12
+    if intent_key == "text_dense" and "section" in tags:
+        score -= 10
+    if "title and content" in name:
+        score += 14
+
+    if target_columns >= 2 and column_count >= 2:
+        score += 10
+    if target_columns == 1 and column_count == 1:
+        score += 6
+
+    if title_position == "bottom" and intent_key in {"text_dense", "text_brief"}:
+        score -= 8
+    if "vertical" in tags and intent_key in {"text_dense", "text_brief"}:
+        score -= 6
+    if intent_key == "visual_split" and "split" in tags:
+        score += 8
+    if intent_key == "visual_focus" and "caption" in tags:
+        score += 8
+    if intent_key in {"table_comparison", "hybrid_data"} and "split" in tags:
+        score += 8
+    if requires_body and not candidate["has_body"]:
+        score -= 10
 
     return score
 
@@ -979,34 +1395,57 @@ def pick_layout(
     has_table: bool,
     has_visual: bool,
     has_subtitle: bool,
-) -> tuple[Any, str]:
-    del prs, requested_index, requested_name, fallback, prefer_master_layouts
+    bullet_count: int = 0,
+) -> tuple[Any, str, dict[str, Any]]:
+    del requested_index, requested_name, fallback, prefer_master_layouts
 
     if not layouts:
         raise ValueError("Template does not contain any slide-master layouts.")
 
-    scored: list[tuple[int, int, int, int, int, int, dict[str, Any]]] = []
+    intent = infer_slide_layout_intent(
+        is_title_slide=is_title_slide,
+        has_bullets=has_bullets,
+        has_table=has_table,
+        has_visual=has_visual,
+        has_subtitle=has_subtitle,
+        bullet_count=bullet_count,
+    )
+
+    usage_by_layout = count_layout_usage(prs, layouts)
+    target_columns = int(intent.get("target_columns", 1))
+
+    scored_base: list[tuple[int, dict[str, Any]]] = []
     for candidate in layouts:
-        score = score_layout_candidate(
+        base_score = score_layout_candidate(
             candidate,
-            is_title_slide=is_title_slide,
-            has_bullets=has_bullets,
-            has_table=has_table,
-            has_visual=has_visual,
+            intent=intent,
+            bullet_count=bullet_count,
             has_subtitle=has_subtitle,
         )
+        scored_base.append((base_score, candidate))
+
+    best_base_score = max(item[0] for item in scored_base)
+    scored: list[tuple[int, int, int, int, int, int, int, int, int, dict[str, Any]]] = []
+    for score, candidate in scored_base:
+        usage = usage_by_layout.get(candidate["layout_key"], 0)
+        usage_penalty = _layout_usage_penalty(usage, best_base_score - score)
+        adjusted_score = score - usage_penalty
 
         # Penalize obvious placeholder mismatches to preserve master intent.
         if is_title_slide and not candidate["has_title"]:
-            score -= 30
+            adjusted_score -= 30
         if has_subtitle and not candidate["has_subtitle"]:
-            score -= 6
+            adjusted_score -= 6
         if (has_bullets or has_table or has_visual) and not candidate["has_body"]:
-            score -= 12
+            adjusted_score -= 12
 
+        column_fit = -abs(int(candidate.get("column_count", 0)) - target_columns)
         scored.append(
             (
+                adjusted_score,
                 score,
+                -usage,
+                column_fit,
                 int(candidate["has_title"]),
                 int(candidate["has_subtitle"]),
                 int(candidate["has_body"]),
@@ -1017,7 +1456,17 @@ def pick_layout(
         )
 
     scored.sort(reverse=True)
-    return scored[0][6]["layout"], "master_auto"
+    selected = scored[0][9]
+    return (
+        selected["layout"],
+        "master_auto",
+        {
+            "intent_key": intent["key"],
+            "intent_description": intent["description"],
+            "selected_layout_name": selected["name"],
+            "selected_layout_tags": selected["tags"],
+        },
+    )
 
 
 def find_body_shape(slide: Any) -> Any | None:
@@ -1315,7 +1764,7 @@ def add_title_slide_if_requested(
         return 0, 0
 
     requested_layout_name = str(title_spec.get("layout_name", "")).strip()
-    layout, selection_mode = pick_layout(
+    layout, selection_mode, _selection_detail = pick_layout(
         prs,
         layouts,
         title_spec.get("layout"),

@@ -31,6 +31,9 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Do not run `skill_list_resources` just to inspect template internals.
 - Use only layouts that already exist in template slide masters.
 - Determine layout automatically from slide content type (title/subtitle/bullets/table/visual).
+- Before selecting a layout, verbalize each page intent first (for example: `title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+- Match layout by both title semantics and composition features (placeholder counts, column split, title position, visual/table slots), not by a single keyword.
+- Reduce usage bias by preferring less-used layouts when multiple candidates are similarly suitable.
 - Do not rely on plan `layout` or `layout_name`; these are treated as optional metadata.
 - Always include agenda and summary slides.
 - Control section order via `plan.auto_slide_order` (`agenda,title,content,summary` by default).
@@ -187,7 +190,11 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
   - title/subtitle,
   - bullets,
   - table and/or visual.
-- After content is fixed, select layout automatically from slide masters.
+- After content is fixed, verbalize one page intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+- Select layout automatically from slide masters by matching that intent to:
+  - layout title semantics,
+  - placeholder composition,
+  - and current usage balance.
 - Keep this order strict: `decide content -> select layout`.
 
 ### 5. Fix Output Language from Prompt

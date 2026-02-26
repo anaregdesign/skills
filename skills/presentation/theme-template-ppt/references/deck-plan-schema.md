@@ -28,7 +28,19 @@ When required profiles are missing, the build step clones and adds master layout
 ## Authoring Order Rule (Per Slide)
 
 1. Decide what to write on the page first (title/subtitle, bullets, table/visual).
-2. Then select layout automatically from existing slide-master layouts.
+2. Verbalize one page intent label:
+   - `title_cover`
+   - `text_dense`
+   - `text_brief`
+   - `visual_split`
+   - `visual_focus`
+   - `table_comparison`
+   - `table_focus`
+   - `hybrid_data`
+3. Then select layout automatically from existing slide-master layouts by matching:
+   - layout title semantics,
+   - composition (placeholder counts, columns, title position),
+   - and usage balance across the deck.
 
 Keep this order strict: `decide content -> select layout`.
 
