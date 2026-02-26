@@ -5,10 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import posixpath
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +67,37 @@ TABLE_LAYOUT_KEYWORDS = (
     "comparison",
 )
 
+AUTO_SLIDE_ORDER_DEFAULT = ("agenda", "title", "content", "summary")
+AUTO_SLIDE_ORDER_ALIASES = {
+    "agenda": "agenda",
+    "toc": "agenda",
+    "table_of_contents": "agenda",
+    "目次": "agenda",
+    "title": "title",
+    "title_slide": "title",
+    "cover": "title",
+    "content": "content",
+    "slides": "content",
+    "body": "content",
+    "summary": "summary",
+    "wrapup": "summary",
+    "まとめ": "summary",
+}
+
+JAPANESE_CHAR_RE = re.compile(r"[ぁ-ゖァ-ヺー一-龯々〆〤]")
+ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
+
+PML_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
+SLIDE_LAYOUT_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+)
+SLIDE_LAYOUT_CONTENT_TYPE = (
+    "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
+)
+
 
 def normalize_language(raw: Any) -> str | None:
     if raw is None:
@@ -72,6 +108,167 @@ def normalize_language(raw: Any) -> str | None:
     if value in {"en", "english"}:
         return "en"
     return None
+
+
+def contains_japanese(text: str) -> bool:
+    return bool(JAPANESE_CHAR_RE.search(text))
+
+
+def contains_ascii_letters(text: str) -> bool:
+    return bool(ASCII_LETTER_RE.search(text))
+
+
+def infer_language_from_plan(plan: dict[str, Any], slides_raw: list[Any]) -> str:
+    explicit = normalize_language(plan.get("language"))
+    if explicit:
+        return explicit
+
+    texts: list[str] = []
+    title_slide = plan.get("title_slide")
+    if isinstance(title_slide, dict):
+        for key in ("title", "subtitle"):
+            value = str(title_slide.get(key, "")).strip()
+            if value:
+                texts.append(value)
+
+    for raw_slide in slides_raw:
+        if not isinstance(raw_slide, dict):
+            continue
+        for key in ("title", "subtitle"):
+            value = str(raw_slide.get(key, "")).strip()
+            if value:
+                texts.append(value)
+        bullets_raw = raw_slide.get("bullets", [])
+        if isinstance(bullets_raw, list):
+            for item in bullets_raw:
+                value = str(item).strip()
+                if value:
+                    texts.append(value)
+
+    ja_count = sum(1 for item in texts if contains_japanese(item))
+    en_count = sum(
+        1
+        for item in texts
+        if contains_ascii_letters(item) and not contains_japanese(item)
+    )
+    if ja_count > 0:
+        return "ja"
+    if en_count > 0:
+        return "en"
+    return "en"
+
+
+def extract_content_titles(slides_raw: list[Any]) -> list[str]:
+    titles: list[str] = []
+    for index, raw_slide in enumerate(slides_raw, start=1):
+        if not isinstance(raw_slide, dict):
+            titles.append(f"Slide {index}")
+            continue
+        title = str(raw_slide.get("title", "")).strip()
+        titles.append(title or f"Slide {index}")
+    return titles
+
+
+def build_agenda_slide(slides_raw: list[Any], language: str) -> dict[str, Any]:
+    titles = extract_content_titles(slides_raw)
+    max_items = 8
+    bullets = [f"{idx}. {title}" for idx, title in enumerate(titles[:max_items], start=1)]
+    if len(titles) > max_items:
+        remainder = len(titles) - max_items
+        if language == "ja":
+            bullets.append(f"他 {remainder} 項目")
+        else:
+            bullets.append(f"... and {remainder} more")
+
+    if language == "ja":
+        return {
+            "title": "目次",
+            "subtitle": "この資料で扱う項目です",
+            "bullets": bullets,
+            "speaker_notes": ["自動追加: 先頭目次スライド"],
+        }
+    return {
+        "title": "Agenda",
+        "subtitle": "Topics covered in this deck",
+        "bullets": bullets,
+        "speaker_notes": ["Auto-added: first agenda slide"],
+    }
+
+
+def build_summary_slide(slides_raw: list[Any], language: str) -> dict[str, Any]:
+    titles = extract_content_titles(slides_raw)
+    topic_count = len(titles)
+    top_topics = " / ".join(titles[:3]) if titles else ""
+
+    if language == "ja":
+        bullets = [f"全 {topic_count} 項目の要点を整理しました"]
+        if top_topics:
+            bullets.append(f"主要トピック: {top_topics}")
+        bullets.append("次のアクションと意思決定項目を確認してください")
+        return {
+            "title": "まとめ",
+            "subtitle": "本資料の結論",
+            "bullets": bullets,
+            "speaker_notes": ["自動追加: 末尾まとめスライド"],
+        }
+
+    bullets = [f"This deck summarized {topic_count} key topics"]
+    if top_topics:
+        bullets.append(f"Main topics: {top_topics}")
+    bullets.append("Confirm the next actions and decisions")
+    return {
+        "title": "Summary",
+        "subtitle": "Key takeaways",
+        "bullets": bullets,
+        "speaker_notes": ["Auto-added: final summary slide"],
+    }
+
+
+def normalize_auto_slide_order(raw: Any) -> list[str]:
+    if raw is None:
+        return list(AUTO_SLIDE_ORDER_DEFAULT)
+
+    if isinstance(raw, str):
+        tokens_raw = [item.strip() for item in raw.split(",") if item.strip()]
+    elif isinstance(raw, list):
+        tokens_raw = [str(item).strip() for item in raw if str(item).strip()]
+    else:
+        raise ValueError("Field 'auto_slide_order' must be a list or comma-separated string.")
+
+    order: list[str] = []
+    seen: set[str] = set()
+    for token in tokens_raw:
+        mapped = AUTO_SLIDE_ORDER_ALIASES.get(token.lower()) or AUTO_SLIDE_ORDER_ALIASES.get(token)
+        if mapped is None:
+            allowed = ", ".join(sorted(set(AUTO_SLIDE_ORDER_ALIASES.keys())))
+            raise ValueError(
+                f"Unsupported auto_slide_order token: {token!r}. Allowed aliases: {allowed}"
+            )
+        if mapped in seen:
+            continue
+        seen.add(mapped)
+        order.append(mapped)
+
+    for token in AUTO_SLIDE_ORDER_DEFAULT:
+        if token not in seen:
+            order.append(token)
+    return order
+
+
+def slide_requests_visual(raw_slide: dict[str, Any]) -> bool:
+    visual = raw_slide.get("visual")
+    if not isinstance(visual, dict):
+        return False
+    return bool(str(visual.get("path", "")).strip())
+
+
+def slide_requests_table(raw_slide: dict[str, Any]) -> bool:
+    table = raw_slide.get("table")
+    if not isinstance(table, dict):
+        return False
+    headers = table.get("headers")
+    rows = table.get("rows")
+    return bool(isinstance(headers, list) and headers and isinstance(rows, list) and rows)
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,7 +295,7 @@ def parse_args() -> argparse.Namespace:
         "--fallback-layout",
         type=int,
         default=1,
-        help="Layout index used when slide.layout is missing or invalid",
+        help="Deprecated (ignored). Layout is always auto-detected from slide masters.",
     )
     parser.add_argument(
         "--strict-images",
@@ -108,7 +305,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-prefer-master-layouts",
         action="store_true",
-        help="Disable automatic slide-master layout selection by content type",
+        help="Deprecated (ignored). Master layout auto-detection is always enabled.",
     )
     parser.add_argument(
         "--list-layouts",
@@ -261,6 +458,328 @@ def resolve_path(raw: str, plan_path: Path) -> Path:
     return (plan_path.parent / path).resolve()
 
 
+def _qn(ns: str, local: str) -> str:
+    return f"{{{ns}}}{local}"
+
+
+def _normalize_rel_target(base_part: str, target: str) -> str:
+    base_dir = posixpath.dirname(base_part)
+    normalized = posixpath.normpath(posixpath.join(base_dir, target))
+    return normalized.lstrip("/")
+
+
+def _layout_rels_part(layout_part: str) -> str:
+    layout_name = posixpath.basename(layout_part)
+    return f"ppt/slideLayouts/_rels/{layout_name}.rels"
+
+
+def _extract_layout_number(layout_part: str) -> int:
+    matched = re.search(r"slideLayout(\d+)\.xml$", layout_part)
+    if not matched:
+        return 0
+    return int(matched.group(1))
+
+
+def _layout_features(layout_root: ET.Element) -> tuple[str, bool, bool, bool]:
+    c_sld = layout_root.find(_qn(PML_NS, "cSld"))
+    layout_name = ""
+    if c_sld is not None:
+        layout_name = str(c_sld.attrib.get("name", "")).strip()
+    name_lower = layout_name.lower()
+
+    placeholder_types: list[str] = []
+    for ph in layout_root.findall(f".//{_qn(PML_NS, 'ph')}"):
+        placeholder_types.append(str(ph.attrib.get("type", "")).strip())
+
+    has_title = any(item in {"title", "ctrTitle"} for item in placeholder_types)
+    has_subtitle = any(item == "subTitle" for item in placeholder_types)
+    has_body = any(
+        item in {"", "body", "obj", "tx", "pic", "chart", "tbl", "media", "clipArt"}
+        for item in placeholder_types
+    )
+    return name_lower, has_title, has_subtitle, has_body
+
+
+def _choose_source_layout(entries: list[dict[str, Any]], profile: str) -> dict[str, Any] | None:
+    if not entries:
+        return None
+
+    def find_first(predicate: Any) -> dict[str, Any] | None:
+        for item in entries:
+            if predicate(item):
+                return item
+        return None
+
+    if profile == "title":
+        return (
+            find_first(lambda e: e["has_title"] and e["has_subtitle"])
+            or find_first(lambda e: e["has_title"])
+            or find_first(lambda e: e["has_body"])
+            or entries[0]
+        )
+
+    return (
+        find_first(lambda e: e["has_title"] and e["has_body"])
+        or find_first(lambda e: e["has_body"])
+        or find_first(lambda e: e["has_title"])
+        or entries[0]
+    )
+
+
+def _profile_match(profile: str, entry: dict[str, Any]) -> bool:
+    if profile == "title":
+        return bool(entry["has_title"] and entry["has_subtitle"])
+    if profile == "content":
+        return bool(entry["has_title"] and entry["has_body"])
+    if profile == "visual":
+        return bool(
+            entry["has_body"]
+            and any(token in entry["name_lower"] for token in VISUAL_LAYOUT_KEYWORDS)
+        )
+    if profile == "table":
+        return bool(
+            entry["has_body"]
+            and any(token in entry["name_lower"] for token in TABLE_LAYOUT_KEYWORDS)
+        )
+    return False
+
+
+def _next_unique_layout_name(base_name: str, used_names: set[str]) -> str:
+    candidate = base_name.strip() or "Auto Layout"
+    if candidate.lower() not in used_names:
+        used_names.add(candidate.lower())
+        return candidate
+    index = 2
+    while True:
+        named = f"{candidate} {index}"
+        if named.lower() not in used_names:
+            used_names.add(named.lower())
+            return named
+        index += 1
+
+
+def ensure_required_master_layouts(
+    template_path: Path,
+    *,
+    need_title_layout: bool,
+    need_content_layout: bool,
+    need_visual_layout: bool,
+    need_table_layout: bool,
+) -> dict[str, Any]:
+    required_profiles: list[tuple[str, str]] = []
+    if need_title_layout:
+        required_profiles.append(("title", "Auto Title Slide"))
+    if need_content_layout:
+        required_profiles.append(("content", "Auto Title and Content"))
+    if need_visual_layout:
+        required_profiles.append(("visual", "Auto Visual Content"))
+    if need_table_layout:
+        required_profiles.append(("table", "Auto Table Content"))
+
+    if not required_profiles:
+        return {"created_count": 0, "created_layout_names": []}
+
+    master_part = "ppt/slideMasters/slideMaster1.xml"
+    master_rels_part = "ppt/slideMasters/_rels/slideMaster1.xml.rels"
+    content_types_part = "[Content_Types].xml"
+
+    with zipfile.ZipFile(template_path, "r") as zin:
+        names = set(zin.namelist())
+        if master_part not in names or master_rels_part not in names or content_types_part not in names:
+            raise ValueError(
+                "Template is missing required OpenXML parts for slide-master layout updates."
+            )
+
+        master_root = ET.fromstring(zin.read(master_part))
+        master_rels_root = ET.fromstring(zin.read(master_rels_part))
+        content_types_root = ET.fromstring(zin.read(content_types_part))
+
+        rel_part_by_id: dict[str, str] = {}
+        used_rel_ids: set[str] = set()
+        for rel in master_rels_root.findall(_qn(PKG_REL_NS, "Relationship")):
+            rel_id = str(rel.attrib.get("Id", "")).strip()
+            rel_type = str(rel.attrib.get("Type", "")).strip()
+            target = str(rel.attrib.get("Target", "")).strip()
+            if rel_id:
+                used_rel_ids.add(rel_id)
+            if rel_type != SLIDE_LAYOUT_REL_TYPE or not rel_id or not target:
+                continue
+            rel_part_by_id[rel_id] = _normalize_rel_target(master_part, target)
+
+        layout_id_list = master_root.find(_qn(PML_NS, "sldLayoutIdLst"))
+        if layout_id_list is None:
+            raise ValueError("slideMaster1.xml does not contain p:sldLayoutIdLst.")
+
+        entries: list[dict[str, Any]] = []
+        used_layout_ids: set[int] = set()
+        used_layout_name_lowers: set[str] = set()
+        max_layout_number = 0
+        for order_index, item in enumerate(layout_id_list.findall(_qn(PML_NS, "sldLayoutId"))):
+            raw_layout_id = str(item.attrib.get("id", "")).strip()
+            if raw_layout_id.isdigit():
+                used_layout_ids.add(int(raw_layout_id))
+            rel_id = str(item.attrib.get(_qn(REL_NS, "id"), "")).strip()
+            if not rel_id:
+                continue
+            part = rel_part_by_id.get(rel_id)
+            if not part or part not in names:
+                continue
+            max_layout_number = max(max_layout_number, _extract_layout_number(part))
+            layout_root = ET.fromstring(zin.read(part))
+            name_lower, has_title, has_subtitle, has_body = _layout_features(layout_root)
+            used_layout_name_lowers.add(name_lower)
+            entries.append(
+                {
+                    "part": part,
+                    "rel_id": rel_id,
+                    "name_lower": name_lower,
+                    "has_title": has_title,
+                    "has_subtitle": has_subtitle,
+                    "has_body": has_body,
+                    "order_index": order_index,
+                }
+            )
+
+        if not entries:
+            raise ValueError("Template does not contain any slide-master layouts.")
+
+        existing_override_parts = {
+            str(override.attrib.get("PartName", "")).lstrip("/")
+            for override in content_types_root.findall(_qn(CT_NS, "Override"))
+        }
+
+        created_layout_names: list[str] = []
+        new_parts: dict[str, bytes] = {}
+
+        next_layout_id = (max(used_layout_ids) + 1) if used_layout_ids else 100000
+
+        def next_rel_id() -> str:
+            counter = 1
+            while True:
+                candidate = f"rId{counter}"
+                if candidate not in used_rel_ids:
+                    used_rel_ids.add(candidate)
+                    return candidate
+                counter += 1
+
+        for profile, base_name in required_profiles:
+            if any(_profile_match(profile, entry) for entry in entries):
+                continue
+
+            source = _choose_source_layout(entries, profile)
+            if source is None:
+                continue
+
+            max_layout_number += 1
+            new_layout_part = f"ppt/slideLayouts/slideLayout{max_layout_number}.xml"
+            new_layout_rels_part = _layout_rels_part(new_layout_part)
+
+            source_layout_xml = zin.read(source["part"])
+            source_layout_rels_xml = zin.read(_layout_rels_part(source["part"]))
+            new_layout_root = ET.fromstring(source_layout_xml)
+
+            c_sld = new_layout_root.find(_qn(PML_NS, "cSld"))
+            new_layout_name = _next_unique_layout_name(base_name, used_layout_name_lowers)
+            if c_sld is not None:
+                c_sld.attrib["name"] = new_layout_name
+            if profile == "title":
+                new_layout_root.attrib["type"] = "title"
+            elif profile == "content":
+                new_layout_root.attrib["type"] = "obj"
+
+            new_layout_xml = ET.tostring(
+                new_layout_root, encoding="utf-8", xml_declaration=True
+            )
+            new_parts[new_layout_part] = new_layout_xml
+            new_parts[new_layout_rels_part] = source_layout_rels_xml
+
+            rel_id = next_rel_id()
+            ET.SubElement(
+                master_rels_root,
+                _qn(PKG_REL_NS, "Relationship"),
+                {
+                    "Id": rel_id,
+                    "Type": SLIDE_LAYOUT_REL_TYPE,
+                    "Target": f"../slideLayouts/{posixpath.basename(new_layout_part)}",
+                },
+            )
+
+            while next_layout_id in used_layout_ids:
+                next_layout_id += 1
+            used_layout_ids.add(next_layout_id)
+            ET.SubElement(
+                layout_id_list,
+                _qn(PML_NS, "sldLayoutId"),
+                {
+                    "id": str(next_layout_id),
+                    _qn(REL_NS, "id"): rel_id,
+                },
+            )
+            next_layout_id += 1
+
+            if new_layout_part not in existing_override_parts:
+                ET.SubElement(
+                    content_types_root,
+                    _qn(CT_NS, "Override"),
+                    {
+                        "PartName": f"/{new_layout_part}",
+                        "ContentType": SLIDE_LAYOUT_CONTENT_TYPE,
+                    },
+                )
+                existing_override_parts.add(new_layout_part)
+
+            _, has_title, has_subtitle, has_body = _layout_features(new_layout_root)
+            entries.append(
+                {
+                    "part": new_layout_part,
+                    "rel_id": rel_id,
+                    "name_lower": new_layout_name.lower(),
+                    "has_title": has_title,
+                    "has_subtitle": has_subtitle,
+                    "has_body": has_body,
+                    "order_index": len(entries),
+                }
+            )
+            created_layout_names.append(new_layout_name)
+
+    if not created_layout_names:
+        return {"created_count": 0, "created_layout_names": []}
+
+    updates = {
+        master_part: ET.tostring(master_root, encoding="utf-8", xml_declaration=True),
+        master_rels_part: ET.tostring(master_rels_root, encoding="utf-8", xml_declaration=True),
+        content_types_part: ET.tostring(content_types_root, encoding="utf-8", xml_declaration=True),
+    }
+
+    tmp_fd, tmp_raw = tempfile.mkstemp(suffix=".pptx", dir=str(template_path.parent))
+    os.close(tmp_fd)
+    tmp_path = Path(tmp_raw)
+    try:
+        with zipfile.ZipFile(template_path, "r") as zin, zipfile.ZipFile(tmp_path, "w") as zout:
+            existing_parts: set[str] = set()
+            for info in zin.infolist():
+                part_name = info.filename
+                existing_parts.add(part_name)
+                payload = updates.get(part_name)
+                if payload is None:
+                    payload = zin.read(part_name)
+                zout.writestr(info, payload)
+
+            for part_name, payload in new_parts.items():
+                if part_name in existing_parts:
+                    continue
+                zout.writestr(part_name, payload, compress_type=zipfile.ZIP_DEFLATED)
+        os.replace(tmp_path, template_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+    return {
+        "created_count": len(created_layout_names),
+        "created_layout_names": created_layout_names,
+    }
+
+
 def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     seen_layout_ids: set[int] = set()
@@ -295,20 +814,7 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
             )
 
     if not items:
-        for layout_index, layout in enumerate(prs.slide_layouts):
-            name = str(getattr(layout, "name", "") or "").strip()
-            items.append(
-                {
-                    "layout": layout,
-                    "name": name,
-                    "name_lower": name.lower(),
-                    "master_index": 0,
-                    "layout_index": layout_index,
-                    "has_title": False,
-                    "has_subtitle": False,
-                    "has_body": False,
-                }
-            )
+        raise ValueError("Template does not contain slide-master layouts.")
     return items
 
 
@@ -347,20 +853,6 @@ def inspect_template_layouts(args: argparse.Namespace) -> dict[str, Any]:
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return report
-
-
-def find_layout_by_name(layouts: list[dict[str, Any]], raw_name: str) -> dict[str, Any] | None:
-    wanted = raw_name.strip().lower()
-    if not wanted:
-        return None
-
-    for item in layouts:
-        if item["name_lower"] == wanted:
-            return item
-    for item in layouts:
-        if wanted in item["name_lower"]:
-            return item
-    return None
 
 
 def score_layout_candidate(
@@ -416,15 +908,6 @@ def score_layout_candidate(
     return score
 
 
-def resolve_fallback_layout(prs: Presentation, fallback: int) -> Any:
-    layout_count = len(prs.slide_layouts)
-    if layout_count == 0:
-        raise ValueError("Template does not contain any slide layouts.")
-    if 0 <= fallback < layout_count:
-        return prs.slide_layouts[fallback]
-    return prs.slide_layouts[0]
-
-
 def pick_layout(
     prs: Presentation,
     layouts: list[dict[str, Any]],
@@ -439,39 +922,44 @@ def pick_layout(
     has_visual: bool,
     has_subtitle: bool,
 ) -> tuple[Any, str]:
-    layout_count = len(prs.slide_layouts)
-    if layout_count == 0:
-        raise ValueError("Template does not contain any slide layouts.")
+    del prs, requested_index, requested_name, fallback, prefer_master_layouts
 
-    if requested_name.strip():
-        matched = find_layout_by_name(layouts, requested_name)
-        if matched is not None:
-            return matched["layout"], "requested_name"
-        print(
-            f"[WARN] Requested layout_name not found: {requested_name!r}; fallback selection is used.",
-            file=sys.stderr,
+    if not layouts:
+        raise ValueError("Template does not contain any slide-master layouts.")
+
+    scored: list[tuple[int, int, int, int, int, int, dict[str, Any]]] = []
+    for candidate in layouts:
+        score = score_layout_candidate(
+            candidate,
+            is_title_slide=is_title_slide,
+            has_bullets=has_bullets,
+            has_table=has_table,
+            has_visual=has_visual,
+            has_subtitle=has_subtitle,
         )
 
-    if isinstance(requested_index, int) and 0 <= requested_index < layout_count:
-        return prs.slide_layouts[requested_index], "requested_index"
+        # Penalize obvious placeholder mismatches to preserve master intent.
+        if is_title_slide and not candidate["has_title"]:
+            score -= 30
+        if has_subtitle and not candidate["has_subtitle"]:
+            score -= 6
+        if (has_bullets or has_table or has_visual) and not candidate["has_body"]:
+            score -= 12
 
-    if prefer_master_layouts:
-        scored: list[tuple[int, dict[str, Any]]] = []
-        for candidate in layouts:
-            score = score_layout_candidate(
+        scored.append(
+            (
+                score,
+                int(candidate["has_title"]),
+                int(candidate["has_subtitle"]),
+                int(candidate["has_body"]),
+                -int(candidate["master_index"]),
+                -int(candidate["layout_index"]),
                 candidate,
-                is_title_slide=is_title_slide,
-                has_bullets=has_bullets,
-                has_table=has_table,
-                has_visual=has_visual,
-                has_subtitle=has_subtitle,
             )
-            scored.append((score, candidate))
-        scored.sort(key=lambda item: item[0], reverse=True)
-        if scored and scored[0][0] > 0:
-            return scored[0][1]["layout"], "master_auto"
+        )
 
-    return resolve_fallback_layout(prs, fallback), "fallback"
+    scored.sort(reverse=True)
+    return scored[0][6]["layout"], "master_auto"
 
 
 def find_body_shape(slide: Any) -> Any | None:
@@ -799,7 +1287,6 @@ def add_title_slide_if_requested(
 
 def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     template_path = resolve_template_path(args.template)
-    prefer_master_layouts = not args.no_prefer_master_layouts
 
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
@@ -815,6 +1302,33 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     expected_language = normalize_language(plan.get("language"))
     if plan.get("language") not in (None, "") and expected_language is None:
         raise ValueError("Unsupported plan.language. Use 'ja' or 'en'.")
+    resolved_language = infer_language_from_plan(plan, slides_raw)
+    auto_slide_order = normalize_auto_slide_order(plan.get("auto_slide_order"))
+
+    for index, raw_slide in enumerate(slides_raw, start=1):
+        if not isinstance(raw_slide, dict):
+            raise ValueError(f"Slide #{index} must be a JSON object.")
+
+    # The template can be replaced between runs; always inspect and patch per-run.
+    need_title_layout = isinstance(plan.get("title_slide"), dict)
+    need_content_layout = True
+    need_visual_layout = any(
+        slide_requests_visual(raw_slide)
+        for raw_slide in slides_raw
+        if isinstance(raw_slide, dict)
+    )
+    need_table_layout = any(
+        slide_requests_table(raw_slide)
+        for raw_slide in slides_raw
+        if isinstance(raw_slide, dict)
+    )
+    layout_bootstrap = ensure_required_master_layouts(
+        staged_template,
+        need_title_layout=need_title_layout,
+        need_content_layout=need_content_layout,
+        need_visual_layout=need_visual_layout,
+        need_table_layout=need_table_layout,
+    )
 
     # Initialize one output PPTX file, then append slides to it one-by-one.
     if staged_template.resolve() != output_path.resolve() or not output_path.exists():
@@ -851,8 +1365,7 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
             command.append("--strict-images")
         if args.no_prefer_master_layouts:
             command.append("--no-prefer-master-layouts")
-        if expected_language:
-            command.extend(["--language", expected_language])
+        command.extend(["--language", resolved_language])
 
         completed = subprocess.run(command, capture_output=True, text=True)
         if completed.returncode != 0:
@@ -871,24 +1384,26 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
                 f"Slide append returned non-JSON output for {kind} slide #{seq}: {stdout_text}"
             ) from exc
 
+    sequence = 0
     title_spec = plan.get("title_slide")
-    if isinstance(title_spec, dict):
-        title_result = append_one(title_spec, kind="title", seq=0)
-        added_slides += 1
-        if title_result.get("used_master_auto"):
-            master_auto_layout_count += 1
+    sections: dict[str, list[tuple[str, dict[str, Any]]]] = {
+        "agenda": [("content", build_agenda_slide(slides_raw, resolved_language))],
+        "title": [("title", title_spec)] if isinstance(title_spec, dict) else [],
+        "content": [("content", raw_slide) for raw_slide in slides_raw if isinstance(raw_slide, dict)],
+        "summary": [("content", build_summary_slide(slides_raw, resolved_language))],
+    }
 
-    for index, raw_slide in enumerate(slides_raw, start=1):
-        if not isinstance(raw_slide, dict):
-            raise ValueError(f"Slide #{index} must be a JSON object.")
-        slide_result = append_one(raw_slide, kind="content", seq=index)
-        added_slides += 1
-        if slide_result.get("used_master_auto"):
-            master_auto_layout_count += 1
-        if slide_result.get("table_added"):
-            inserted_tables += 1
-        if slide_result.get("visual_added"):
-            inserted_visuals += 1
+    for section in auto_slide_order:
+        for kind, spec_obj in sections.get(section, []):
+            slide_result = append_one(spec_obj, kind=kind, seq=sequence)
+            sequence += 1
+            added_slides += 1
+            if slide_result.get("used_master_auto"):
+                master_auto_layout_count += 1
+            if slide_result.get("table_added"):
+                inserted_tables += 1
+            if slide_result.get("visual_added"):
+                inserted_visuals += 1
 
     return {
         "work_dir": work_dir,
@@ -900,7 +1415,10 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
         "visual_count": inserted_visuals,
         "table_count": inserted_tables,
         "master_auto_layout_count": master_auto_layout_count,
-        "language": expected_language or "auto",
+        "created_master_layout_count": layout_bootstrap["created_count"],
+        "created_master_layouts": layout_bootstrap["created_layout_names"],
+        "auto_slide_order": auto_slide_order,
+        "language": resolved_language,
     }
 
 
@@ -925,6 +1443,10 @@ def main() -> int:
     print(f"[OK] Slides using auto-selected master layouts: {result['master_auto_layout_count']}")
     print(f"[OK] Slides with inserted tables: {result['table_count']}")
     print(f"[OK] Slides with inserted visuals: {result['visual_count']}")
+    print(f"[OK] Auto slide order: {', '.join(result['auto_slide_order'])}")
+    print(f"[OK] Created master layouts: {result['created_master_layout_count']}")
+    if result["created_master_layouts"]:
+        print(f"[OK] Created master layout names: {', '.join(result['created_master_layouts'])}")
     print(f"[OK] Language: {result['language']}")
     return 0
 

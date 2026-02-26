@@ -4,6 +4,12 @@ Use this JSON format as input to `scripts/build_pptx.py`.
 Run `build_pptx.py` with `--slide-title` so output is created in `~/.foundry_local_playground/output/<slide_title>/`.
 Each item in `slides[]` can also be passed directly to `scripts/add_slide.py --kind content --spec <slide_spec.json>`.
 
+`build_pptx.py` always auto-inserts agenda (`目次`/`Agenda`) and summary (`まとめ`/`Summary`) sections.
+By default they are placed at first/last positions.
+
+You can override section order with `auto_slide_order`.
+Default order is: `["agenda", "title", "content", "summary"]`.
+
 ## Layout-First Rule
 
 Inspect template layouts before authoring the plan:
@@ -12,27 +18,33 @@ Inspect template layouts before authoring the plan:
 python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 ```
 
-Then copy `layout_name` values from the catalog into every slide spec.
+Use this catalog to understand available title/content/table/visual-oriented layouts.
+Layout is auto-selected from existing masters, so explicit layout mapping is not required.
+When required profiles are missing, the build step clones and adds master layouts automatically.
+
+## Authoring Order Rule (Per Slide)
+
+1. Decide what to write on the page first (title/subtitle, bullets, table/visual).
+2. Then select layout automatically from existing slide-master layouts.
+
+Keep this order strict: `decide content -> select layout`.
 
 ## Minimal shape
 
 ```json
 {
   "language": "ja",
+  "auto_slide_order": ["title", "agenda", "content", "summary"],
   "title_slide": {
-    "title": "Theme title",
-    "subtitle": "Audience and date",
-    "layout": 0,
-    "layout_name": "Title Slide",
-    "sources": ["https://example.com"],
-    "speaker_notes": ["Optional presenter note"]
+      "title": "Theme title",
+      "subtitle": "Audience and date",
+      "sources": ["https://example.com"],
+      "speaker_notes": ["Optional presenter note"]
   },
   "slides": [
     {
       "title": "Slide header",
       "subtitle": "Optional subtitle",
-      "layout": 1,
-      "layout_name": "Title and Content",
       "bullets": [
         "Key point 1",
         "Key point 2",
@@ -71,16 +83,17 @@ Then copy `layout_name` values from the catalog into every slide spec.
 
 ## Field details
 
-- `title_slide` (optional): Adds a title slide before normal slides.
+- `title_slide` (optional): Adds a title slide section (position depends on `auto_slide_order`).
 - `slides` (required): Non-empty list of slide objects.
 - `language` (recommended): Deck language (`ja` or `en`) matching prompt language.
+- `auto_slide_order` (optional): Section order tokens from `agenda`, `title`, `content`, `summary`.
 
 Slide object fields:
 
 - `title` (required): Slide title text.
 - `subtitle` (optional): Subtitle text.
-- `layout` (optional): Integer layout index from the template.
-- `layout_name` (recommended): Slide-master layout name from `--list-layouts` output.
+- `layout` (optional metadata): Ignored by renderer because layout is auto-detected.
+- `layout_name` (optional metadata): Ignored by renderer because layout is auto-detected.
 - `bullets` (optional): List of body bullet strings.
 - `visual` (optional): Visual object.
 - `table` (optional): Table object for structured comparison.
@@ -106,7 +119,6 @@ Table object fields:
 ## Notes
 
 - Resolve relative image paths from the plan JSON location.
-- Fill `layout_name` for title slide and all content slides whenever possible.
 - Keep all slide text in `language` unless bilingual output is explicitly requested.
 - Keep every content slide structured with bullets, a table, or a visual.
 - Prefer one message per slide.

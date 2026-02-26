@@ -1,6 +1,6 @@
 ---
 name: theme-template-ppt
-description: Create PowerPoint decks from assets/template.pptx by first inspecting template slide-master layouts, then filling each slide with a matching layout_name in deck-plan JSON. Use when asked to research a topic, draft slide headers, expand headers into slide-ready content, generate chart/table visuals, run build/lint scripts, and return final .pptx outputs. Do not use for Python environment provisioning (use python-venv).
+description: Create PowerPoint decks from assets/template.pptx by first inspecting template slide-master layouts, then automatically selecting the best existing master layout per slide content. Use when asked to research a topic, draft slide headers, expand headers into slide-ready content, generate chart/table visuals, run build/lint scripts, and return final .pptx outputs. Do not use for Python environment provisioning (use python-venv).
 ---
 
 # Theme Template PPT
@@ -26,6 +26,13 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Do not call `python-venv` scripts from this skill.
 - Do not read `assets/template.pptx` as base64 or plain text.
 - Do not run `skill_list_resources` just to inspect template internals.
+- Use only layouts that already exist in template slide masters.
+- Determine layout automatically from slide content type (title/subtitle/bullets/table/visual).
+- Do not rely on plan `layout` or `layout_name`; these are treated as optional metadata.
+- Always include agenda and summary slides.
+- Control section order via `plan.auto_slide_order` (`agenda,title,content,summary` by default).
+- The runtime template can be replaced for each use; always inspect and validate masters every run.
+- If required layout profiles are missing, create and add them to the slide master before appending slides.
 - Never pass non-JSON files to:
   - `scripts/make_chart.py --spec`
   - `scripts/build_pptx.py --plan`
@@ -106,31 +113,40 @@ python3 scripts/build_pptx.py --list-layouts
 python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 ```
 
-- Use this catalog as the source of truth for `layout_name`.
-- Assign `layout_name` for title slide and every content slide in plan JSON.
-- Prefer explicit `layout_name` over numeric `layout`.
+- Use this catalog to understand which layout patterns exist in the template.
+- The script auto-selects one of these existing master layouts for each slide.
+- If required profiles are missing (title/content/visual/table), the script clones and adds missing layouts.
 
-### 2. Fix Output Language from Prompt
+### 2. Decide Slide Content First, Then Select Layout
+
+- For each page, decide content first:
+  - title/subtitle,
+  - bullets,
+  - table and/or visual.
+- After content is fixed, select layout automatically from slide masters.
+- Keep this order strict: `decide content -> select layout`.
+
+### 3. Fix Output Language from Prompt
 
 - Detect user prompt language first (`ja` or `en`).
 - Set `plan.language` to that value.
 - Keep all slide/chart/table text in that language unless user explicitly asks bilingual output.
 - Add `language` to every chart spec and keep it aligned with `plan.language`.
 
-### 3. Research Theme on the Web
+### 4. Research Theme on the Web
 
 - Search the web based on the theme.
 - Prefer primary or official sources.
 - Cross-check key claims with at least two sources.
 - Record source URLs and retrieval dates.
 
-### 4. Draft Slide Headers as Bullets
+### 5. Draft Slide Headers as Bullets
 
 - Produce a bullet list of slide headers before writing slide bodies.
 - Keep at least five headers unless the user specifies a different count.
 - Attach one line of intent per header.
 
-### 5. Deep-Dive Each Header and Build Slide Plan
+### 6. Deep-Dive Each Header and Build Slide Plan
 
 - Expand each header into one slide message.
 - Keep each slide to 2-5 concise bullet points.
@@ -140,10 +156,9 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
   - diagram/chart image.
 - Attach source links to factual claims.
 - Build the plan JSON using `references/deck-plan-schema.md`.
-- Add `layout_name` in every slide spec using names from Step 1.
 - Ensure plan input passed to `build_pptx.py` is valid JSON (file/stdin/inline JSON).
 
-### 6. Plan Visuals Early and Aggressively
+### 7. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -153,12 +168,14 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is valid JSON (file/stdin/inline JSON) or inline quick args.
 
-### 7. Build Deck from Template
+### 8. Build Deck from Template
 
 - Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
 - Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
 - Keep `--template` omitted by default so the script uses `assets/template.pptx`.
-- Keep auto selection enabled, but provide `layout_name` explicitly from Step 1.
+- Keep master-layout auto detection enabled.
+- The build flow always inserts agenda (`目次`/`Agenda`) and summary (`まとめ`/`Summary`) sections.
+- Section order is configurable with `plan.auto_slide_order`.
 - The build flow creates one output `.pptx` first, then appends slides sequentially.
 - If generation fails mid-run, keep the partial `.pptx` and resume from the current plan state.
 - Example:
@@ -180,7 +197,7 @@ python3 scripts/add_slide.py \
   --language ja
 ```
 
-### 8. Validate Density and Visual Coverage
+### 9. Validate Density and Visual Coverage
 
 - Run `scripts/lint_pptx.py` after generation.
 - Example:
@@ -197,19 +214,19 @@ python3 scripts/lint_pptx.py \
   - replacing text blocks with charts/diagrams/tables.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 9. Enforce Language Consistency
+### 10. Enforce Language Consistency
 
 - Confirm `plan.language` matches prompt language.
 - Confirm all slide text and chart labels match `plan.language`.
 - For Japanese charts, confirm selected font can render all labels (no tofu boxes).
 
-### 10. Perform Final Consistency Pass
+### 11. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
 - Check terminology and numeric consistency.
 - Check that visual usage is sufficient and text density is controlled.
 
-### 11. Save and Report
+### 12. Save and Report
 
 - Save final deck and return absolute path.
 - Return:

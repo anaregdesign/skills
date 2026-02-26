@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
         "--fallback-layout",
         type=int,
         default=1,
-        help="Fallback layout index when layout/layout_name selection fails",
+        help="Deprecated (ignored). Layout is always auto-detected from slide masters.",
     )
     parser.add_argument(
         "--strict-images",
@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-prefer-master-layouts",
         action="store_true",
-        help="Disable automatic slide-master layout selection by content type",
+        help="Deprecated (ignored). Master layout auto-detection is always enabled.",
     )
     parser.add_argument(
         "--language",
