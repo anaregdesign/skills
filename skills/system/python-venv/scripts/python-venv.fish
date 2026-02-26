@@ -104,12 +104,36 @@ function __python_venv_deactivate
         return $status
     end
 
-    echo "A virtual environment is active, but deactivate function is unavailable." >&2
-    return 1
+    set -l old_virtual_env "$VIRTUAL_ENV"
+    set -e VIRTUAL_ENV
+    set -e VIRTUAL_ENV_PROMPT
+    set -l filtered_path
+
+    for path_entry in $PATH
+        if test "$path_entry" = "$old_virtual_env/bin"; or test "$path_entry" = "$old_virtual_env/Scripts"
+            continue
+        end
+        set filtered_path $filtered_path $path_entry
+    end
+
+    set -gx PATH $filtered_path
+    return 0
+end
+
+function __python_venv_is_non_python_dep --argument-names dep
+    switch $dep
+        case pptxgenjs npm:pptxgenjs
+            return 0
+        case '*'
+            return 1
+    end
 end
 
 function __python_venv_add --argument-names version
     set -l deps $argv[2..-1]
+    set -l python_deps
+    set -l skipped_deps
+
     if test -z "$version"; or test (count $deps) -eq 0
         echo "Usage: python_venv add <X.Y.Z> <dep...>" >&2
         return 1
@@ -118,9 +142,25 @@ function __python_venv_add --argument-names version
     __python_venv_ensure "$version"; or return 1
     set -l env_dir (__python_venv_env_dir "$version"); or return 1
 
+    for dep in $deps
+        if __python_venv_is_non_python_dep "$dep"
+            set skipped_deps $skipped_deps "$dep"
+        else
+            set python_deps $python_deps "$dep"
+        end
+    end
+
+    if test (count $skipped_deps) -gt 0
+        echo "Skipping non-Python dependencies: "(string join " " $skipped_deps)". Install with: npm install -g pptxgenjs" >&2
+    end
+
+    if test (count $python_deps) -eq 0
+        return 0
+    end
+
     set -l previous_dir (pwd)
     cd "$env_dir"; or return 1
-    uv add $deps
+    uv add $python_deps
     set -l status_code $status
     if test $status_code -eq 0
         uv lock

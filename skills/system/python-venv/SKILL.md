@@ -15,6 +15,7 @@ description: Provide Python environment provisioning with uv under this skill's 
 - If the requested version does not exist yet, create it and activate it.
 - For dependency changes, run `uv add`, then `uv lock`, then `uv sync` in the target version project.
 - If version is not specified, default to `3.12.8`.
+- Call `path` at most once at the end of provisioning. Do not poll it in a loop.
 
 ## Minimal Work Units
 
@@ -37,6 +38,7 @@ The shell scripts expose one command with these units:
 5. `add <version> <deps...>`
    - Run `ensure`.
    - Run `uv add <deps...>`, `uv lock`, `uv sync`.
+   - If non-Python dependencies are included (for example `pptxgenjs`), skip them and show install guidance.
 6. `path <version>`
    - Print resolved `<skill-dir>/assets/vX.Y.Z` path.
 
@@ -49,7 +51,7 @@ When asked for a Python environment, perform the following in order:
    - Otherwise `3.12.8`.
 2. Run `python_venv use <version>` to create and activate the environment.
 3. If dependency updates are requested, run `python_venv add <version> <deps...>`.
-4. Return the environment path from `python_venv path <version>`.
+4. Return the environment path from `python_venv path <version>` (single call only).
 
 ## One-Liner Command Pattern
 
@@ -61,6 +63,14 @@ bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv use 3.12.8'
 
 ```zsh
 zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv add 3.12.8 requests'
+```
+
+```fish
+fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv use 3.12.8'
+```
+
+```powershell
+pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv use 3.12.8"
 ```
 
 ## Shell-Specific Scripts
@@ -77,39 +87,36 @@ Load the script for the current shell, then call `python_venv`.
 ### Bash
 
 ```bash
-source <skill-dir>/scripts/python-venv.bash
-python_venv use 3.12.8
-python_venv add 3.12.8 pytest ruff
-python_venv use 3.13.1
-python_venv deactivate
+bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv use 3.12.8'
+bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv add 3.12.8 pytest ruff'
+bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv path 3.12.8'
 ```
 
 ### Zsh
 
 ```zsh
-source <skill-dir>/scripts/python-venv.zsh
-python_venv use 3.11.11
-python_venv add 3.11.11 requests
-python_venv use 3.12.8
-python_venv deactivate
+zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv use 3.11.11'
+zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv add 3.11.11 requests'
+zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv path 3.11.11'
 ```
 
 ### Fish
 
 ```fish
-source <skill-dir>/scripts/python-venv.fish
-python_venv use 3.10.14
-python_venv add 3.10.14 numpy pandas
-python_venv use 3.11.11
-python_venv deactivate
+fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv use 3.10.14'
+fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv add 3.10.14 numpy pandas'
+fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv path 3.10.14'
 ```
 
 ### PowerShell
 
 ```powershell
-. <skill-dir>/scripts/python-venv.ps1
-python_venv use 3.13.1
-python_venv add 3.13.1 fastapi uvicorn
-python_venv use 3.13.2
-python_venv deactivate
+pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv use 3.13.1"
+pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv add 3.13.1 fastapi uvicorn"
+pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv path 3.13.1"
 ```
+
+## Deactivate Guidance
+
+- Use `python_venv deactivate` only when explicitly switching to another environment or clearing `VIRTUAL_ENV`.
+- In non-interactive shells, `deactivate` fallback cleanup is handled by this skill.

@@ -96,6 +96,11 @@ python_venv__activate() {
 }
 
 python_venv__deactivate() {
+  local old_virtual_env
+  local clean_path=""
+  local entry
+  local -a _python_venv_path_entries=()
+
   if [[ -z "${VIRTUAL_ENV:-}" ]]; then
     return 0
   fi
@@ -105,13 +110,43 @@ python_venv__deactivate() {
     return $?
   fi
 
-  echo "A virtual environment is active, but deactivate function is unavailable." >&2
-  return 1
+  old_virtual_env="$VIRTUAL_ENV"
+  unset VIRTUAL_ENV
+  unset VIRTUAL_ENV_PROMPT
+
+  IFS=':' read -r -a _python_venv_path_entries <<< "${PATH:-}"
+  for entry in "${_python_venv_path_entries[@]}"; do
+    if [[ -z "$entry" || "$entry" == "$old_virtual_env/bin" || "$entry" == "$old_virtual_env/Scripts" ]]; then
+      continue
+    fi
+    if [[ -z "$clean_path" ]]; then
+      clean_path="$entry"
+    else
+      clean_path="${clean_path}:$entry"
+    fi
+  done
+  export PATH="$clean_path"
+  return 0
+}
+
+python_venv__is_non_python_dep() {
+  local dep="$1"
+  case "$dep" in
+    pptxgenjs | npm:pptxgenjs)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 python_venv__add() {
   local version="$1"
   local env_dir
+  local dep
+  local -a python_deps=()
+  local -a skipped_deps=()
 
   shift
   if [[ -z "$version" || "$#" -eq 0 ]]; then
@@ -122,9 +157,25 @@ python_venv__add() {
   python_venv__ensure "$version" || return 1
   env_dir="$(python_venv__env_dir "$version")" || return 1
 
+  for dep in "$@"; do
+    if python_venv__is_non_python_dep "$dep"; then
+      skipped_deps+=("$dep")
+    else
+      python_deps+=("$dep")
+    fi
+  done
+
+  if [[ "${#skipped_deps[@]}" -gt 0 ]]; then
+    echo "Skipping non-Python dependencies: ${skipped_deps[*]}. Install with: npm install -g pptxgenjs" >&2
+  fi
+
+  if [[ "${#python_deps[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
   (
     cd "$env_dir" &&
-      uv add "$@" &&
+      uv add "${python_deps[@]}" &&
       uv lock &&
       uv sync
   ) || return 1

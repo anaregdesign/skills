@@ -121,7 +121,36 @@ function Deactivate-PythonVenv {
         return
     }
 
-    throw "A virtual environment is active, but deactivate function is unavailable."
+    $oldVirtualEnv = $env:VIRTUAL_ENV
+    Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+    Remove-Item Env:VIRTUAL_ENV_PROMPT -ErrorAction SilentlyContinue
+
+    $binPath = Join-Path $oldVirtualEnv "bin"
+    $scriptsPath = Join-Path $oldVirtualEnv "Scripts"
+    $pathEntries = @()
+    foreach ($entry in ($env:PATH -split [IO.Path]::PathSeparator)) {
+        if ([string]::IsNullOrWhiteSpace($entry)) {
+            continue
+        }
+        if ($entry -eq $binPath -or $entry -eq $scriptsPath) {
+            continue
+        }
+        $pathEntries += $entry
+    }
+    $env:PATH = ($pathEntries -join [IO.Path]::PathSeparator)
+}
+
+function Test-NonPythonDependency {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Dependency
+    )
+
+    switch ($Dependency) {
+        "pptxgenjs" { return $true }
+        "npm:pptxgenjs" { return $true }
+        default { return $false }
+    }
 }
 
 function Add-PythonVenvDependencies {
@@ -134,12 +163,30 @@ function Add-PythonVenvDependencies {
 
     Ensure-PythonVenv -Version $Version
     $envDir = Get-PythonVenvDir -Version $Version
+    $pythonDependencies = @()
+    $skippedDependencies = @()
+
+    foreach ($dependency in $Dependencies) {
+        if (Test-NonPythonDependency -Dependency $dependency) {
+            $skippedDependencies += $dependency
+            continue
+        }
+        $pythonDependencies += $dependency
+    }
+
+    if ($skippedDependencies.Count -gt 0) {
+        [Console]::Error.WriteLine("Skipping non-Python dependencies: {0}. Install with: npm install -g pptxgenjs" -f ($skippedDependencies -join " "))
+    }
+
+    if ($pythonDependencies.Count -eq 0) {
+        return
+    }
 
     $previousLocation = Get-Location
     try {
         Set-Location -LiteralPath $envDir
 
-        & uv add @Dependencies
+        & uv add @pythonDependencies
         if ($LASTEXITCODE -ne 0) {
             throw "uv add failed with exit code $LASTEXITCODE."
         }
@@ -227,4 +274,8 @@ function python_venv {
             throw "Unknown action: $Action"
         }
     }
+}
+
+if ($MyInvocation.InvocationName -ne ".") {
+    python_venv @args
 }
