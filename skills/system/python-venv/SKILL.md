@@ -74,7 +74,14 @@ python -m markitdown /abs/path/to/input.pptx
 bash scripts/run-python.sh --script /abs/path/to/script.py
 bash scripts/run-python.sh --module markitdown -- /abs/path/to/input.pptx
 bash scripts/run-python.sh --code "print('hello')" --name hello.py
+bash scripts/run-python.sh --code-chunk "print('hello')"$'\n' --name hello.py
+bash scripts/run-python.sh --code-base64 "<base64>" --name hello.py
 ```
+
+**MCP 制約（重要）**
+- Local Playground の `skill_run_script` は、引数 1 個あたり文字数制限（実測で 512 文字）がかかることがある。
+- 長文コードは `--code` に直接渡さず、`--script` / `--code-chunk` / `--code-base64` を使う。
+- 迷ったら「`.py` を作る → `--script` で実行」を優先する。
 
 ### 5) 削除（remove）
 
@@ -96,6 +103,29 @@ source scripts/switch-python.sh --python 3.12.10
 
 3. 必要なら `add-deps.sh` で依存追加
 4. 生成コードは `.py` に保存して `python <file.py>` で実行
+5. 生成後は実行結果（成果物や標準出力）まで確認して完了判定する
+
+## MCP-safe Patterns
+
+1. 長文コードは、`--code` 1 発で渡さない
+2. 初期化は短い `--code` で空ファイル作成、本文は `--code` で追記する
+3. 可能なら最終的に `--script /abs/path/to/file.py` で実行する
+4. テキストが大きい場合は `--code-base64` を使う
+
+## Troubleshooting
+
+- `args[3] must be 512 characters or fewer.`
+  - 原因: `--code` 引数が長すぎる
+  - 対処: `--code-chunk` で分割、または `.py` 作成後に `--script` 実行
+- `ModuleNotFoundError: <pkg>`
+  - 原因: 依存不足
+  - 対処: `bash scripts/add-deps.sh --python <version> <pkg>`
+- `No active virtualenv...`
+  - 原因: venv 未有効
+  - 対処: `source scripts/switch-python.sh --python <version>` または `--python` 指定で実行
+- `No such file or directory: 'soffice'`
+  - 原因: 外部ツール未導入
+  - 対処: LibreOffice を導入するか、`soffice` 依存ステップをスキップして別手段で確認する
 
 ## Rules
 

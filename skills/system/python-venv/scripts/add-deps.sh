@@ -25,6 +25,17 @@ run_cmd() {
   "$@"
 }
 
+run_uv_cmd() {
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    run_cmd "$@"
+    return 0
+  fi
+
+  # uv emits progress/info on stderr. Merge streams so wrappers that treat
+  # any stderr output as failure do not misclassify successful executions.
+  "$@" 2>&1
+}
+
 resolve_script_dir() {
   local src="${BASH_SOURCE[0]}"
   while [[ -h "${src}" ]]; do
@@ -190,8 +201,8 @@ fi
 echo "Project directory: ${PROJECT_DIR}"
 echo "Venv path: ${VENV_DIR}"
 
-run_cmd uv --project "${PROJECT_DIR}" add --python "${PYTHON_BIN}" "${PACKAGES[@]}"
-run_cmd uv --project "${PROJECT_DIR}" lock --python "${PYTHON_BIN}"
-run_cmd uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
+run_uv_cmd uv --project "${PROJECT_DIR}" add --python "${PYTHON_BIN}" "${PACKAGES[@]}"
+run_uv_cmd uv --project "${PROJECT_DIR}" lock --python "${PYTHON_BIN}"
+run_uv_cmd uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
 
 echo "Done."
