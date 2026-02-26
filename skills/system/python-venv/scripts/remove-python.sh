@@ -4,13 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  remove-python.sh [--dry-run] [--python <version>]
+  remove-python.sh [--dry-run] --python <x.y.z>
+  remove-python.sh [--dry-run]
 
 Examples:
   remove-python.sh --python 3.12.10
-  remove-python.sh --python v3.12.10
   remove-python.sh --dry-run --python 3.12.10
-  remove-python.sh
 USAGE
 }
 
@@ -50,41 +49,17 @@ resolve_script_dir() {
   cd -P "$(dirname "${src}")" && pwd
 }
 
-SCRIPT_DIR="$(resolve_script_dir)"
-DEFAULT_SKILL_DIR="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
-SKILL_DIR="${PYTHON_VENV_SKILL_DIR:-${DEFAULT_SKILL_DIR}}"
-ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR:-${SKILL_DIR}/assets}"
-ENV_FILE="${ASSETS_BASE_DIR}/.env"
-
-load_env_file() {
-  if [[ -f "${ENV_FILE}" ]]; then
-    while IFS= read -r line || [[ -n "${line}" ]]; do
-      line="${line%$'\r'}"
-      line="${line#$'\ufeff'}"
-      [[ -z "${line}" || "${line}" == \#* ]] && continue
-      if [[ "${line}" == *=* ]]; then
-        local key="${line%%=*}"
-        local value="${line#*=}"
-        if [[ "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-          printf -v "${key}" '%s' "${value}"
-          export "${key}"
-        fi
-      fi
-    done < "${ENV_FILE}"
+version_from_active_venv() {
+  local active_venv="${VIRTUAL_ENV:-}"
+  if [[ -z "${active_venv}" ]]; then
+    return 1
   fi
-}
-
-clear_active_env_file() {
-  if [[ "${DRY_RUN}" -eq 1 ]]; then
-    echo "+ write ${ENV_FILE}"
-    return 0
+  active_venv="${active_venv%/}"
+  if [[ "${active_venv}" != "${ASSETS_BASE_DIR}"/v*/.venv ]]; then
+    return 1
   fi
-
-  cat > "${ENV_FILE}" <<EOF
-PYTHON_VENV_SKILL_DIR=${SKILL_DIR}
-PYTHON_VENV_ASSETS_DIR=${ASSETS_BASE_DIR}
-PYTHON_VENV_LAST_ACTION=remove
-EOF
+  printf '%s' "${active_venv#${ASSETS_BASE_DIR}/}"
+  printf '\n'
 }
 
 DRY_RUN=0
@@ -108,10 +83,6 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    --)
-      shift
-      break
-      ;;
     *)
       echo "Unknown option: $1" >&2
       usage
@@ -120,31 +91,23 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-load_env_file
-if [[ -n "${PYTHON_VENV_ASSETS_DIR:-}" && "${PYTHON_VENV_ASSETS_DIR}" != "${ASSETS_BASE_DIR}" ]]; then
-  ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR}"
-  ENV_FILE="${ASSETS_BASE_DIR}/.env"
-  load_env_file
-fi
-
-if [[ -z "${PYTHON_REQUEST}" && -n "${PYTHON_VENV_ACTIVE_VERSION:-}" ]]; then
-  PYTHON_REQUEST="${PYTHON_VENV_ACTIVE_VERSION#v}"
-  echo "Using PYTHON_VENV_ACTIVE_VERSION from ${ENV_FILE}: ${PYTHON_REQUEST}"
-fi
+SCRIPT_DIR="$(resolve_script_dir)"
+SKILL_DIR="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
+ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR:-${SKILL_DIR}/assets}"
 
 if [[ -z "${PYTHON_REQUEST}" ]]; then
-  echo "--python <version> is required (or set PYTHON_VENV_ACTIVE_VERSION in ${ENV_FILE})." >&2
-  usage
-  exit 1
+  ACTIVE_TAG="$(version_from_active_venv || true)"
+  if [[ -n "${ACTIVE_TAG}" ]]; then
+    PYTHON_VERSION_TAG="${ACTIVE_TAG}"
+  else
+    echo "--python <x.y.z> is required (or activate target env first)." >&2
+    usage
+    exit 1
+  fi
+else
+  PYTHON_VERSION_TAG="$(normalize_version_tag "${PYTHON_REQUEST}")" || exit 1
 fi
 
-if [[ $# -gt 0 ]]; then
-  echo "Too many arguments." >&2
-  usage
-  exit 1
-fi
-
-PYTHON_VERSION_TAG="$(normalize_version_tag "${PYTHON_REQUEST}")" || exit 1
 TARGET_DIR="${ASSETS_BASE_DIR}/${PYTHON_VERSION_TAG}"
 TARGET_VENV="${TARGET_DIR}/.venv"
 
@@ -166,14 +129,6 @@ if [[ -n "${ACTIVE_VENV}" ]]; then
   fi
 fi
 
-if [[ -z "${ACTIVE_VENV}" && "${PYTHON_VENV_ACTIVE_VENV_DIR:-}" == "${TARGET_VENV}" ]]; then
-  echo "Note: ${ENV_FILE} indicates this version was last active in another process."
-fi
-
 run_cmd rm -rf "${TARGET_DIR}"
-
-if [[ "${PYTHON_VENV_ACTIVE_VERSION:-}" == "${PYTHON_VERSION_TAG}" ]]; then
-  clear_active_env_file
-fi
 
 echo "Done. Removed ${TARGET_DIR}"
