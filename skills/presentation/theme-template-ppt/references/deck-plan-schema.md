@@ -2,6 +2,17 @@
 
 Use this JSON format as input to `scripts/build_pptx.py`.
 Run `build_pptx.py` with `--slide-title` so output is created in `~/.foundry_local_playground/output/<slide_title>/`.
+Each item in `slides[]` can also be passed directly to `scripts/add_slide.py --kind content --spec <slide_spec.json>`.
+
+## Layout-First Rule
+
+Inspect template layouts before authoring the plan:
+
+```bash
+python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
+```
+
+Then copy `layout_name` values from the catalog into every slide spec.
 
 ## Minimal shape
 
@@ -67,7 +78,7 @@ Slide object fields:
 - `title` (required): Slide title text.
 - `subtitle` (optional): Subtitle text.
 - `layout` (optional): Integer layout index from the template.
-- `layout_name` (optional): Slide-master layout name (preferred over `layout`).
+- `layout_name` (recommended): Slide-master layout name from `--list-layouts` output.
 - `bullets` (optional): List of body bullet strings.
 - `visual` (optional): Visual object.
 - `table` (optional): Table object for structured comparison.
@@ -93,7 +104,7 @@ Table object fields:
 ## Notes
 
 - Resolve relative image paths from the plan JSON location.
-- Use `layout_name` when the template has specific master layouts to target.
+- Fill `layout_name` for title slide and all content slides whenever possible.
 - Keep every content slide structured with bullets, a table, or a visual.
 - Prefer one message per slide.
 - Keep body bullets concise so `lint_pptx.py` can pass.

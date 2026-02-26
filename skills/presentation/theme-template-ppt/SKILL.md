@@ -1,6 +1,6 @@
 ---
 name: theme-template-ppt
-description: Create PowerPoint decks from a provided theme and the template at assets/template.pptx. Use when asked to research a topic on the web, draft slide headers, expand each header into slide-ready content, aggressively structure slides with bullets, tables, and chart/diagram visuals, and actively apply template slide-master layouts while preventing text-heavy pages, validating consistency and density, and saving a final .pptx with its output path.
+description: Create PowerPoint decks from assets/template.pptx by first inspecting template slide-master layouts, then filling each slide with a matching layout_name in deck-plan JSON. Use when asked to research a topic, draft slide headers, expand headers into slide-ready content, generate chart/table visuals, run build/lint scripts, and return final .pptx outputs. Do not use for Python environment provisioning (use python-venv).
 ---
 
 # Theme Template PPT
@@ -12,9 +12,24 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - This skill handles:
   - research and draft slide content,
   - create deck/chart JSON inputs,
+  - inspect template master layouts,
   - run `make_chart.py`, `build_pptx.py`, and `lint_pptx.py`,
   - return output paths and source list.
-- Run this workflow in an already prepared Python environment.
+- This skill does not provision Python environments.
+- Run this workflow only after the environment is prepared (for example by `python-venv`).
+
+## Hard Rules
+
+- Keep responsibility separation:
+  - `python-venv`: environment creation/switch/dependency install only.
+  - `theme-template-ppt`: research/planning/build/lint/output only.
+- Do not call `python-venv` scripts from this skill.
+- Do not read `assets/template.pptx` as base64 or plain text.
+- Do not run `skill_list_resources` just to inspect template internals.
+- Never pass non-JSON files to:
+  - `scripts/make_chart.py --spec`
+  - `scripts/build_pptx.py --plan`
+- If required runtime dependencies are missing, stop and ask for environment provisioning handoff.
 
 ## Input Contract
 
@@ -35,10 +50,6 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 ## Python Dependencies
 
 - Install: `python3 -m pip install -r scripts/requirements.txt`
-- Optional isolated environment:
-  1. `python3 -m venv .venv`
-  2. `source .venv/bin/activate`
-  3. `python3 -m pip install -r scripts/requirements.txt`
 - Packages:
   - `python-pptx`
   - `Pillow`
@@ -58,25 +69,46 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
   - `@<path>`,
   - `-` (read JSON from stdin),
   - inline JSON object string.
-- Never pass Markdown (`.md`) or PPT/PPTX files as `--spec` or `--plan`.
+- Never pass Markdown, text requirements, or PPT/PPTX files as `--spec` or `--plan`.
 - Always prepare machine-readable JSON before running build/lint steps.
+- Run JSON preflight before script execution:
+  - `python3 -m json.tool <chart_spec.json>`
+  - `python3 -m json.tool <deck_plan.json>`
 
 ## Workflow
 
-### 1. Research Theme on the Web
+### 1. Inspect Template Slide Masters First
+
+- Before planning content, inspect layout catalog from template:
+
+```bash
+python3 scripts/build_pptx.py --list-layouts
+```
+
+- Optional: save catalog JSON for plan authoring:
+
+```bash
+python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
+```
+
+- Use this catalog as the source of truth for `layout_name`.
+- Assign `layout_name` for title slide and every content slide in plan JSON.
+- Prefer explicit `layout_name` over numeric `layout`.
+
+### 2. Research Theme on the Web
 
 - Search the web based on the theme.
 - Prefer primary or official sources.
 - Cross-check key claims with at least two sources.
 - Record source URLs and retrieval dates.
 
-### 2. Draft Slide Headers as Bullets
+### 3. Draft Slide Headers as Bullets
 
 - Produce a bullet list of slide headers before writing slide bodies.
 - Keep at least five headers unless the user specifies a different count.
 - Attach one line of intent per header.
 
-### 3. Deep-Dive Each Header and Build Slide Plan
+### 4. Deep-Dive Each Header and Build Slide Plan
 
 - Expand each header into one slide message.
 - Keep each slide to 2-5 concise bullet points.
@@ -86,10 +118,10 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
   - diagram/chart image.
 - Attach source links to factual claims.
 - Build the plan JSON using `references/deck-plan-schema.md`.
-- Add `layout_name` in slide specs when you need strict master layout control.
+- Add `layout_name` in every slide spec using names from Step 1.
 - Ensure plan input passed to `build_pptx.py` is valid JSON (file/stdin/inline JSON).
 
-### 4. Plan Visuals Early and Aggressively
+### 5. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -99,11 +131,14 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is valid JSON (file/stdin/inline JSON) or inline quick args.
 
-### 5. Build Deck from Template
+### 6. Build Deck from Template
 
-- Use `scripts/build_pptx.py` to stage template and populate slides from the plan JSON.
+- Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
+- Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
 - Keep `--template` omitted by default so the script uses `assets/template.pptx`.
-- Let the script auto-select the best slide-master layout for each slide type (title/visual/table/content).
+- Keep auto selection enabled, but provide `layout_name` explicitly from Step 1.
+- The build flow creates one output `.pptx` first, then appends slides sequentially.
+- If generation fails mid-run, keep the partial `.pptx` and resume from the current plan state.
 - Example:
 
 ```bash
@@ -113,7 +148,16 @@ python3 scripts/build_pptx.py \
   --output final-deck.pptx
 ```
 
-### 6. Validate Density and Visual Coverage
+- Optional direct append example:
+
+```bash
+python3 scripts/add_slide.py \
+  --deck ~/.foundry_local_playground/output/market-outlook-2026/final-deck.pptx \
+  --kind content \
+  --spec /absolute/path/slide_spec_001.json
+```
+
+### 7. Validate Density and Visual Coverage
 
 - Run `scripts/lint_pptx.py` after generation.
 - Example:
@@ -130,13 +174,13 @@ python3 scripts/lint_pptx.py \
   - replacing text blocks with charts/diagrams/tables.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 7. Perform Final Consistency Pass
+### 8. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
 - Check terminology and numeric consistency.
 - Check that visual usage is sufficient and text density is controlled.
 
-### 8. Save and Report
+### 9. Save and Report
 
 - Save final deck and return absolute path.
 - Return:
@@ -148,7 +192,8 @@ python3 scripts/lint_pptx.py \
 
 ## Script Quick Reference
 
-- `scripts/build_pptx.py`: Build final `.pptx` from template and JSON plan.
+- `scripts/build_pptx.py`: Initialize output `.pptx` and orchestrate sequential append.
+- `scripts/add_slide.py`: Append one title/content slide to an existing `.pptx`.
 - `scripts/lint_pptx.py`: Detect crowded and unstructured slides (bullets/table/visual checks).
 - `scripts/make_chart.py`: Generate chart PNG files from simple JSON specs.
 

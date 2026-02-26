@@ -1,4 +1,4 @@
 interface:
   display_name: "Theme Template PPT"
-  short_description: "Build PowerPoint from theme and templates"
-  default_prompt: "Use $theme-template-ppt to create a slide deck from a theme and assets template."
+  short_description: "Build template-based decks with master-layout mapping"
+  default_prompt: "Use $theme-template-ppt to inspect slide masters first, map layout_name values, and build a final deck from assets/template.pptx."

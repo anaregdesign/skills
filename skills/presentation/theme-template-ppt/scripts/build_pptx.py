@@ -7,6 +7,7 @@ import argparse
 import json
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -64,14 +65,13 @@ TABLE_LAYOUT_KEYWORDS = (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--slide-title", required=True, help="Slide deck title used for workdir naming")
+    parser.add_argument("--slide-title", help="Slide deck title used for workdir naming")
     parser.add_argument(
         "--template",
         help="Path to PPTX template (default: <skill-dir>/assets/template.pptx)",
     )
     parser.add_argument(
         "--plan",
-        required=True,
         help="Deck plan source: JSON file path, @<path>, '-' (stdin), or inline JSON object string",
     )
     parser.add_argument(
@@ -99,7 +99,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable automatic slide-master layout selection by content type",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--list-layouts",
+        action="store_true",
+        help=(
+            "Inspect template slide masters and print a JSON layout catalog. "
+            "When used, --slide-title/--plan are not required."
+        ),
+    )
+    parser.add_argument(
+        "--layout-report",
+        help="Optional JSON output file for --list-layouts mode",
+    )
+
+    args = parser.parse_args()
+    if args.list_layouts:
+        return args
+    if not args.slide_title:
+        parser.error("--slide-title is required unless --list-layouts is used.")
+    if not args.plan:
+        parser.error("--plan is required unless --list-layouts is used.")
+    return args
 
 
 def normalize_slide_title(raw: str) -> str:
@@ -279,6 +299,43 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
                 }
             )
     return items
+
+
+def build_layout_catalog(layouts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    catalog: list[dict[str, Any]] = []
+    for item in layouts:
+        catalog.append(
+            {
+                "master_index": item["master_index"],
+                "layout_index": item["layout_index"],
+                "layout_name": item["name"],
+                "has_title": item["has_title"],
+                "has_subtitle": item["has_subtitle"],
+                "has_body": item["has_body"],
+            }
+        )
+    return catalog
+
+
+def inspect_template_layouts(args: argparse.Namespace) -> dict[str, Any]:
+    template_path = resolve_template_path(args.template)
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template not found: {template_path}")
+
+    prs = Presentation(str(template_path))
+    layouts = list_master_layouts(prs)
+    report = {
+        "template_path": str(template_path),
+        "layout_count": len(layouts),
+        "layouts": build_layout_catalog(layouts),
+    }
+
+    if args.layout_report:
+        report_path = Path(args.layout_report).expanduser().resolve()
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return report
 
 
 def find_layout_by_name(layouts: list[dict[str, Any]], raw_name: str) -> dict[str, Any] | None:
@@ -745,50 +802,78 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     if not isinstance(slides_raw, list) or not slides_raw:
         raise ValueError("Plan must contain a non-empty 'slides' list.")
 
-    prs = Presentation(str(staged_template))
-    layouts = list_master_layouts(prs)
+    # Initialize one output PPTX file, then append slides to it one-by-one.
+    if staged_template.resolve() != output_path.resolve() or not output_path.exists():
+        shutil.copy2(staged_template, output_path)
+
+    add_slide_script = (Path(__file__).resolve().parent / "add_slide.py").resolve()
+    if not add_slide_script.exists():
+        raise FileNotFoundError(f"Slide append script not found: {add_slide_script}")
+
     inserted_visuals = 0
     inserted_tables = 0
     master_auto_layout_count = 0
-    title_slides, title_master_auto = add_title_slide_if_requested(
-        prs,
-        layouts,
-        plan,
-        args.fallback_layout,
-        prefer_master_layouts,
-    )
-    added_slides = title_slides
-    master_auto_layout_count += title_master_auto
+    added_slides = 0
+
+    def append_one(spec_obj: dict[str, Any], *, kind: str, seq: int) -> dict[str, Any]:
+        spec_path = (work_dir / f"slide_spec_{seq:03d}_{kind}.json").resolve()
+        spec_path.write_text(json.dumps(spec_obj, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        command = [
+            sys.executable,
+            str(add_slide_script),
+            "--deck",
+            str(output_path),
+            "--kind",
+            kind,
+            "--spec",
+            str(spec_path),
+            "--fallback-layout",
+            str(args.fallback_layout),
+            "--plan-base",
+            str(plan_reference_path.parent),
+        ]
+        if args.strict_images:
+            command.append("--strict-images")
+        if args.no_prefer_master_layouts:
+            command.append("--no-prefer-master-layouts")
+
+        completed = subprocess.run(command, capture_output=True, text=True)
+        if completed.returncode != 0:
+            stderr_text = (completed.stderr or "").strip()
+            stdout_text = (completed.stdout or "").strip()
+            detail = stderr_text or stdout_text or "unknown error"
+            raise RuntimeError(f"Failed to append {kind} slide #{seq}: {detail}")
+
+        stdout_text = (completed.stdout or "").strip()
+        if not stdout_text:
+            raise RuntimeError(f"Slide append returned empty output for {kind} slide #{seq}.")
+        try:
+            return json.loads(stdout_text.splitlines()[-1])
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"Slide append returned non-JSON output for {kind} slide #{seq}: {stdout_text}"
+            ) from exc
+
+    title_spec = plan.get("title_slide")
+    if isinstance(title_spec, dict):
+        title_result = append_one(title_spec, kind="title", seq=0)
+        added_slides += 1
+        if title_result.get("used_master_auto"):
+            master_auto_layout_count += 1
 
     for index, raw_slide in enumerate(slides_raw, start=1):
-        spec = normalize_slide_spec(raw_slide, index)
-        layout, selection_mode = pick_layout(
-            prs,
-            layouts,
-            spec["layout"],
-            spec["layout_name"],
-            args.fallback_layout,
-            prefer_master_layouts=prefer_master_layouts,
-            is_title_slide=False,
-            has_bullets=bool(spec["bullets"]),
-            has_table=bool(spec["table"]),
-            has_visual=bool(spec["visual"].get("path")),
-            has_subtitle=bool(spec["subtitle"]),
-        )
-        slide = prs.slides.add_slide(layout)
-        if selection_mode == "master_auto":
-            master_auto_layout_count += 1
-        set_title(slide, spec["title"])
-        set_subtitle(slide, spec["subtitle"])
-        set_bullets(slide, spec["bullets"])
-        if add_table(prs, slide, spec["table"]):
-            inserted_tables += 1
-        if add_visual(prs, slide, spec["visual"], plan_reference_path, args.strict_images):
-            inserted_visuals += 1
-        add_notes(slide, spec["sources"], spec["speaker_notes"])
+        if not isinstance(raw_slide, dict):
+            raise ValueError(f"Slide #{index} must be a JSON object.")
+        slide_result = append_one(raw_slide, kind="content", seq=index)
         added_slides += 1
+        if slide_result.get("used_master_auto"):
+            master_auto_layout_count += 1
+        if slide_result.get("table_added"):
+            inserted_tables += 1
+        if slide_result.get("visual_added"):
+            inserted_visuals += 1
 
-    prs.save(str(output_path))
     return {
         "work_dir": work_dir,
         "plan_path": plan_reference_path,
@@ -805,6 +890,10 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
 def main() -> int:
     args = parse_args()
     try:
+        if args.list_layouts:
+            report = inspect_template_layouts(args)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
         result = build_deck(args)
     except Exception as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

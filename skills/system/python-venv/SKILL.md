@@ -10,6 +10,7 @@ description: Provide Python environment provisioning with uv under this skill's 
 - Always place projects under `<skill-dir>/assets/vX.Y.Z`.
 - Resolve `<skill-dir>` by finding the full path of `SKILL.md` first, then use its parent directory.
 - Never depend on caller `cwd` to choose project location.
+- Never call with only a version string (for example `python-venv.bash 3.12.8`).
 - Do not run only `source .../python-venv.<shell>`; always execute an action in the same command.
 - This skill performs environment provisioning only. Do not execute user Python code in this skill.
 - Do not generate business/domain artifacts (for example deck plans, chart specs, PPTX files).
@@ -63,7 +64,23 @@ When asked for a Python environment, perform the following in order:
 3. If dependency updates are requested, run `python_venv add <version> <deps...>`.
 4. Return the environment path from `python_venv path <version>` (single call only).
 
-## One-Liner Command Pattern
+## Direct Script Command Contract
+
+When executing script files directly (without `source`), pass explicit action argv:
+
+```bash
+scripts/python-venv.bash use 3.12.8
+scripts/python-venv.bash add 3.12.8 python-pptx Pillow matplotlib
+scripts/python-venv.bash path 3.12.8
+```
+
+Call order:
+
+1. `use`
+2. optional `add`
+3. `path` (once at end)
+
+## Interactive Shell Pattern
 
 Run the action in the same command where the script is loaded.
 
