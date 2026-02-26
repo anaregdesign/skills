@@ -100,6 +100,12 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
   - JSON file path only.
 - Never pass Markdown, text requirements, or PPT/PPTX files as `--spec` or `--plan`.
 - Always write machine-readable JSON to files before running build/lint steps.
+- Always pass absolute JSON file paths to scripts.
+- Required before build:
+  - `<work_dir>/deck_plan.json` (required)
+- Optional JSON files:
+  - `<work_dir>/chart_spec_*.json` (when generating charts)
+  - `<work_dir>/slide_spec_*.json` (when appending slides manually)
 - Run JSON preflight before script execution:
   - `scripts/validate_json.py <chart_spec.json>`
   - `scripts/validate_json.py <deck_plan.json>`
@@ -116,7 +122,44 @@ scripts/ensure_workdir_key.bash
 
 - Use the same `THEME_TEMPLATE_PPT_WORK_KEY` on later turns in the same thread.
 
-### 2. Inspect Template Slide Masters First
+### 2. Emit Required JSON Files Before Build
+
+- Resolve the working directory once and keep it in this thread:
+
+```bash
+WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
+mkdir -p "$WORK_DIR"
+```
+
+- Write deck plan JSON to the required file path:
+
+```bash
+cat > "$WORK_DIR/deck_plan.json" <<'JSON'
+{
+  "language": "ja",
+  "slides": [
+    {
+      "title": "イントロダクション",
+      "bullets": [
+        "要点1",
+        "要点2"
+      ]
+    }
+  ]
+}
+JSON
+```
+
+- Validate JSON before build:
+
+```bash
+scripts/validate_json.py "$WORK_DIR/deck_plan.json"
+```
+
+- If charts are needed, write chart spec JSON under the same work directory (for example `"$WORK_DIR/chart_spec_001.json"`), then validate it with `scripts/validate_json.py`.
+- Do not call `build_pptx.py` until `"$WORK_DIR/deck_plan.json"` exists and passes validation.
+
+### 3. Inspect Template Slide Masters First
 
 - Before planning content, inspect layout catalog from template:
 
@@ -134,7 +177,7 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - The script auto-selects one of these existing master layouts for each slide.
 - If required profiles are missing (title/content/visual/table), the script clones and adds missing layouts.
 
-### 3. Decide Slide Content First, Then Select Layout
+### 4. Decide Slide Content First, Then Select Layout
 
 - For each page, decide content first:
   - title/subtitle,
@@ -143,27 +186,27 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - After content is fixed, select layout automatically from slide masters.
 - Keep this order strict: `decide content -> select layout`.
 
-### 4. Fix Output Language from Prompt
+### 5. Fix Output Language from Prompt
 
 - Detect user prompt language first (`ja` or `en`).
 - Set `plan.language` to that value.
 - Keep all slide/chart/table text in that language unless user explicitly asks bilingual output.
 - Add `language` to every chart spec and keep it aligned with `plan.language`.
 
-### 5. Research Theme on the Web
+### 6. Research Theme on the Web
 
 - Search the web based on the theme.
 - Prefer primary or official sources.
 - Cross-check key claims with at least two sources.
 - Record source URLs and retrieval dates.
 
-### 6. Draft Slide Headers as Bullets
+### 7. Draft Slide Headers as Bullets
 
 - Produce a bullet list of slide headers before writing slide bodies.
 - Keep at least five headers unless the user specifies a different count.
 - Attach one line of intent per header.
 
-### 7. Deep-Dive Each Header and Build Slide Plan
+### 8. Deep-Dive Each Header and Build Slide Plan
 
 - Expand each header into one slide message.
 - Keep each slide to 2-5 concise bullet points.
@@ -175,7 +218,7 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - Build the plan JSON using `references/deck-plan-schema.md`.
 - Ensure plan input passed to `build_pptx.py` is a valid JSON file path.
 
-### 8. Plan Visuals Early and Aggressively
+### 9. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -185,7 +228,7 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is a valid JSON file path (or use inline quick args without JSON).
 
-### 9. Build Deck from Template
+### 10. Build Deck from Template
 
 - Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
 - Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
@@ -198,30 +241,33 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - Example:
 
 ```bash
+WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
 scripts/build_pptx.py \
   --slide-title "market-outlook-2026" \
-  --plan /absolute/path/deck_plan.json \
+  --plan "$WORK_DIR/deck_plan.json" \
   --output final-deck.pptx
 ```
 
 - Optional direct append example:
 
 ```bash
+WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
 scripts/add_slide.py \
-  --deck ~/.foundry_local_playground/outputs/pptx/<work_key>/final-deck.pptx \
+  --deck "$WORK_DIR/final-deck.pptx" \
   --kind content \
-  --spec /absolute/path/slide_spec_001.json \
+  --spec "$WORK_DIR/slide_spec_001.json" \
   --language ja
 ```
 
-### 10. Validate Density and Visual Coverage
+### 11. Validate Density and Visual Coverage
 
 - Run `scripts/lint_pptx.py` after generation.
 - Example:
 
 ```bash
+WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
 scripts/lint_pptx.py \
-  --input ~/.foundry_local_playground/outputs/pptx/<work_key>/final-deck.pptx \
+  --input "$WORK_DIR/final-deck.pptx" \
   --fail-on-warning
 ```
 
@@ -231,19 +277,19 @@ scripts/lint_pptx.py \
   - replacing text blocks with charts/diagrams/tables.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 11. Enforce Language Consistency
+### 12. Enforce Language Consistency
 
 - Confirm `plan.language` matches prompt language.
 - Confirm all slide text and chart labels match `plan.language`.
 - For Japanese charts, confirm selected font can render all labels (no tofu boxes).
 
-### 12. Perform Final Consistency Pass
+### 13. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
 - Check terminology and numeric consistency.
 - Check that visual usage is sufficient and text density is controlled.
 
-### 13. Save and Report
+### 14. Save and Report
 
 - Save final deck and return absolute path.
 - Return:
