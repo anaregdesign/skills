@@ -27,6 +27,7 @@ The shell scripts expose one command with these units:
    - If venv is missing, run `ensure` first.
 3. `deactivate`
    - Deactivate current venv if active.
+   - Use this only when you explicitly want to leave the active environment.
 4. `use <version>`
    - Run `ensure`.
    - If another venv is active, `deactivate` first.
@@ -53,8 +54,9 @@ Load the script for the current shell, then call `python_venv`.
 ```bash
 source <skill-dir>/scripts/python-venv.bash
 python_venv use 3.12.8
-python_venv deactivate
 python_venv add 3.12.8 pytest ruff
+python_venv use 3.13.1
+python_venv deactivate
 ```
 
 ### Zsh
@@ -62,8 +64,9 @@ python_venv add 3.12.8 pytest ruff
 ```zsh
 source <skill-dir>/scripts/python-venv.zsh
 python_venv use 3.11.11
-python_venv deactivate
 python_venv add 3.11.11 requests
+python_venv use 3.12.8
+python_venv deactivate
 ```
 
 ### Fish
@@ -71,8 +74,9 @@ python_venv add 3.11.11 requests
 ```fish
 source <skill-dir>/scripts/python-venv.fish
 python_venv use 3.10.14
-python_venv deactivate
 python_venv add 3.10.14 numpy pandas
+python_venv use 3.11.11
+python_venv deactivate
 ```
 
 ### PowerShell
@@ -80,8 +84,9 @@ python_venv add 3.10.14 numpy pandas
 ```powershell
 . <skill-dir>/scripts/python-venv.ps1
 python_venv use 3.13.1
-python_venv deactivate
 python_venv add 3.13.1 fastapi uvicorn
+python_venv use 3.13.2
+python_venv deactivate
 ```
 
 ## Behavior for Version Switch Requests
