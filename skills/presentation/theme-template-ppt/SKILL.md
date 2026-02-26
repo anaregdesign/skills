@@ -54,9 +54,9 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 ## Work Directory and Output Policy
 
 - Use this fixed root: `~/.foundry_local_playground/outputs/pptx/`.
-- Use this fixed working/output directory pattern: `~/.foundry_local_playground/outputs/pptx/<timestamp>/`.
-- Decide the work directory once at the first run in a thread, then reuse that same directory in the same thread.
-- Thread key defaults to `CODEX_THREAD_ID` (or pass `--thread-key` explicitly).
+- Use this fixed working/output directory pattern: `~/.foundry_local_playground/outputs/pptx/<thread_id>/`.
+- The thread key defaults to `CODEX_THREAD_ID` (or pass `--thread-key` explicitly).
+- The same thread always reuses the same directory.
 - Stage template in that directory before building slides.
 - Insert slides in order into the staged template.
 - Save final `.pptx` in the same directory.

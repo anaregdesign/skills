@@ -14,7 +14,6 @@ import sys
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -287,7 +286,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--work-root",
         default=None,
-        help="Deprecated (ignored). Work dir is fixed to ~/.foundry_local_playground/outputs/pptx/<timestamp>/",
+        help="Deprecated (ignored). Work dir is fixed to ~/.foundry_local_playground/outputs/pptx/<thread_id>/",
     )
     parser.add_argument(
         "--thread-key",
@@ -349,10 +348,6 @@ def normalize_slide_title(raw: str) -> str:
     return cleaned
 
 
-def build_timestamp_dir_name() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
-
-
 def resolve_thread_key(args: argparse.Namespace) -> str:
     raw = str(args.thread_key or os.getenv("CODEX_THREAD_ID") or "").strip()
     if raw:
@@ -360,41 +355,9 @@ def resolve_thread_key(args: argparse.Namespace) -> str:
     return "default-thread"
 
 
-def load_thread_workdir_map(path: Path) -> dict[str, str]:
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    result: dict[str, str] = {}
-    for key, value in data.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            continue
-        key_clean = key.strip()
-        value_clean = value.strip()
-        if key_clean and value_clean:
-            result[key_clean] = value_clean
-    return result
-
-
-def save_thread_workdir_map(path: Path, mapping: dict[str, str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_raw = tempfile.mkstemp(
-        prefix=".thread_workdirs.",
-        suffix=".tmp",
-        dir=str(path.parent),
-    )
-    os.close(fd)
-    tmp_path = Path(tmp_raw)
-    try:
-        tmp_path.write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp_path, path)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+def normalize_thread_dir_name(raw: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", raw).strip("-._")
+    return value or "default-thread"
 
 
 def resolve_skill_dir() -> Path:
@@ -418,34 +381,10 @@ def prepare_work_paths(
     root.mkdir(parents=True, exist_ok=True)
 
     thread_key = resolve_thread_key(args)
-    map_path = root / ".thread_workdirs.json"
-    workdir_map = load_thread_workdir_map(map_path)
-
-    reused_work_dir = False
-    work_dir: Path | None = None
-    mapped = workdir_map.get(thread_key)
-    if mapped:
-        mapped_path = Path(mapped).expanduser()
-        if mapped_path.exists() and mapped_path.is_dir():
-            work_dir = mapped_path.resolve()
-            reused_work_dir = True
-        else:
-            workdir_map.pop(thread_key, None)
-
-    if work_dir is None:
-        base_name = build_timestamp_dir_name()
-        suffix = 0
-        while True:
-            candidate = root / (base_name if suffix == 0 else f"{base_name}-{suffix}")
-            try:
-                candidate.mkdir(parents=True, exist_ok=False)
-                work_dir = candidate
-                break
-            except FileExistsError:
-                suffix += 1
-        workdir_map[thread_key] = str(work_dir)
-
-    save_thread_workdir_map(map_path, workdir_map)
+    work_dir_name = normalize_thread_dir_name(thread_key)
+    work_dir = (root / work_dir_name).resolve()
+    reused_work_dir = work_dir.exists()
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     staged_template = work_dir / template_path.name
     if template_path.resolve() != staged_template.resolve():
