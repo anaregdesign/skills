@@ -5,7 +5,6 @@ Usage:
   python_venv activate <X.Y.Z>
   python_venv deactivate
   python_venv use <X.Y.Z>
-  python_venv run <X.Y.Z> <python-args...>
   python_venv add <X.Y.Z> <dep...>
   python_venv path <X.Y.Z>
 "@
@@ -160,26 +159,6 @@ function Add-PythonVenvDependencies {
     }
 }
 
-function Run-PythonInVenv {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Version,
-        [Parameter(Mandatory = $true)]
-        [string[]]$PythonArgs
-    )
-
-    Ensure-PythonVenv -Version $Version
-    $targetVenv = Join-Path (Get-PythonVenvDir -Version $Version) ".venv"
-    if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV) -and $env:VIRTUAL_ENV -ne $targetVenv) {
-        Deactivate-PythonVenv
-    }
-    Activate-PythonVenv -Version $Version
-    & python @PythonArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "python failed with exit code $LASTEXITCODE."
-    }
-}
-
 function python_venv {
     param(
         [Parameter(Position = 0)]
@@ -235,13 +214,6 @@ function python_venv {
                 throw "Version and dependencies are required for add."
             }
             Add-PythonVenvDependencies -Version $Version -Dependencies $Dependencies
-        }
-        "run" {
-            if ([string]::IsNullOrWhiteSpace($Version) -or $null -eq $Dependencies -or $Dependencies.Count -eq 0) {
-                [Console]::Error.WriteLine((Show-PythonVenvUsage))
-                throw "Version and python arguments are required for run."
-            }
-            Run-PythonInVenv -Version $Version -PythonArgs $Dependencies
         }
         "path" {
             if ([string]::IsNullOrWhiteSpace($Version)) {
