@@ -1,4 +1,4 @@
 interface:
   display_name: "Theme Template PPT"
   short_description: "Build template-based decks with master-layout mapping"
-  default_prompt: "Use $theme-template-ppt to inspect slide masters on every run, auto-select and auto-create missing master layouts as needed, keep output language aligned with the prompt, and build a final deck from assets/template.pptx with agenda/summary sections ordered by auto_slide_order."
+  default_prompt: "Use $theme-template-ppt to inspect slide masters on every run, auto-select and auto-create missing master layouts as needed, write JSON specs to files (not inline args), and build a final deck from assets/template.pptx in ~/.foundry_local_playground/outputs/pptx/<timestamp>/ while reusing the same directory within a thread."

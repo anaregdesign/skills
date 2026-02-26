@@ -36,6 +36,7 @@ Use this schema for `scripts/make_chart.py --spec`.
 
 ## Notes
 
+- Write chart specs to a JSON file and pass that file path to `scripts/make_chart.py --spec`.
 - `chart_type` supports: `bar`, `line`, `pie`.
 - `type` is accepted as an alias of `chart_type`.
 - `language` supports: `ja`, `en`. Set this to the user prompt language.

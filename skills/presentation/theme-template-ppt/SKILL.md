@@ -46,15 +46,17 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 ## Input Contract
 
 - Collect: theme, target audience, objective, preferred slide count, and deadline.
-- Collect: `slide_title` for work directory naming.
+- Collect: optional `slide_title` for output filename.
 - Use `assets/template.pptx` as the canonical template.
 - Place reusable visuals (logo/icons/brand images) in `assets/`.
 - Ask focused follow-up questions only when required inputs are missing.
 
 ## Work Directory and Output Policy
 
-- Use this fixed root: `~/.foundry_local_playground/output/`.
-- Use this fixed working/output directory: `~/.foundry_local_playground/output/<slide_title>/`.
+- Use this fixed root: `~/.foundry_local_playground/outputs/pptx/`.
+- Use this fixed working/output directory pattern: `~/.foundry_local_playground/outputs/pptx/<timestamp>/`.
+- Decide the work directory once at the first run in a thread, then reuse that same directory in the same thread.
+- Thread key defaults to `CODEX_THREAD_ID` (or pass `--thread-key` explicitly).
 - Stage template in that directory before building slides.
 - Insert slides in order into the staged template.
 - Save final `.pptx` in the same directory.
@@ -80,19 +82,15 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 ## Script Input Contract (Critical)
 
 - `scripts/make_chart.py --spec` accepts:
-  - JSON file path,
-  - `@<path>`,
-  - `-` (read JSON from stdin),
-  - inline JSON object string.
+  - JSON file path only.
 - `scripts/make_chart.py` also supports inline quick args when `--spec` is omitted:
   - `--type`, `--labels`, `--values`, optional `--title`.
 - `scripts/build_pptx.py --plan` accepts:
-  - JSON file path,
-  - `@<path>`,
-  - `-` (read JSON from stdin),
-  - inline JSON object string.
+  - JSON file path only.
+- `scripts/add_slide.py --spec` accepts:
+  - JSON file path only.
 - Never pass Markdown, text requirements, or PPT/PPTX files as `--spec` or `--plan`.
-- Always prepare machine-readable JSON before running build/lint steps.
+- Always write machine-readable JSON to files before running build/lint steps.
 - Run JSON preflight before script execution:
   - `python3 -m json.tool <chart_spec.json>`
   - `python3 -m json.tool <deck_plan.json>`
@@ -156,7 +154,7 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
   - diagram/chart image.
 - Attach source links to factual claims.
 - Build the plan JSON using `references/deck-plan-schema.md`.
-- Ensure plan input passed to `build_pptx.py` is valid JSON (file/stdin/inline JSON).
+- Ensure plan input passed to `build_pptx.py` is a valid JSON file path.
 
 ### 7. Plan Visuals Early and Aggressively
 
@@ -166,7 +164,7 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
 - Generate charts/figures with `scripts/make_chart.py` when needed.
 - Build chart JSON from `references/chart-spec-schema.md`.
 - Save generated images to a predictable folder (for example `assets/generated/`).
-- Ensure chart input passed to `make_chart.py` is valid JSON (file/stdin/inline JSON) or inline quick args.
+- Ensure chart input passed to `make_chart.py` is a valid JSON file path (or use inline quick args without JSON).
 
 ### 8. Build Deck from Template
 

@@ -1,7 +1,9 @@
 # Deck Plan Schema
 
 Use this JSON format as input to `scripts/build_pptx.py`.
-Run `build_pptx.py` with `--slide-title` so output is created in `~/.foundry_local_playground/output/<slide_title>/`.
+Write plan JSON to a file and pass that file path to `--plan` (inline JSON is not supported).
+Run `build_pptx.py` so output is created in `~/.foundry_local_playground/outputs/pptx/<timestamp>/`.
+The first run chooses `<timestamp>`, then the same thread reuses that directory on later runs.
 Each item in `slides[]` can also be passed directly to `scripts/add_slide.py --kind content --spec <slide_spec.json>`.
 
 `build_pptx.py` always auto-inserts agenda (`目次`/`Agenda`) and summary (`まとめ`/`Summary`) sections.

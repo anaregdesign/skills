@@ -18,7 +18,6 @@ from build_pptx import (
     add_visual,
     list_master_layouts,
     load_json,
-    load_json_text,
     looks_like_json_object,
     normalize_slide_spec,
     pick_layout,
@@ -43,11 +42,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--spec",
         required=True,
-        help="Slide spec source: JSON file path, @<path>, '-' (stdin), or inline JSON object string",
+        help="Slide spec JSON file path",
     )
     parser.add_argument(
         "--plan-base",
-        help="Base directory for resolving relative paths when --spec is inline or stdin",
+        help="Base directory for resolving relative paths",
     )
     parser.add_argument(
         "--fallback-layout",
@@ -169,8 +168,9 @@ def resolve_spec_input(raw_spec: str, base_dir: Path) -> tuple[dict[str, Any], P
         raise ValueError("--spec is empty.")
 
     if source == "-":
-        spec = load_json_text(sys.stdin.read(), "stdin")
-        return spec, (base_dir / "stdin-slide-spec.json")
+        raise ValueError(
+            "stdin input is disabled for --spec. Write JSON to a file and pass its path."
+        )
 
     if source.startswith("@"):
         source = source[1:].strip()
@@ -178,13 +178,15 @@ def resolve_spec_input(raw_spec: str, base_dir: Path) -> tuple[dict[str, Any], P
             raise ValueError("Invalid --spec value: @ requires a file path.")
 
     if looks_like_json_object(source):
-        spec = load_json_text(source, "inline --spec JSON")
-        return spec, (base_dir / "inline-slide-spec.json")
+        raise ValueError(
+            "Inline JSON via --spec is disabled to avoid argv size limits. "
+            "Write JSON to a file and pass the file path."
+        )
 
     spec_path = Path(source).expanduser().resolve()
     if not spec_path.exists():
         raise FileNotFoundError(
-            f"Spec not found: {spec_path}. Provide an existing JSON file or inline JSON."
+            f"Spec not found: {spec_path}. Provide an existing JSON file path."
         )
     if spec_path.suffix.lower() in {".md", ".ppt", ".pptx"}:
         raise ValueError(

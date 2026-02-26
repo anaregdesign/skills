@@ -14,6 +14,7 @@ import sys
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -97,6 +98,7 @@ SLIDE_LAYOUT_REL_TYPE = (
 SLIDE_LAYOUT_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
 )
+FIXED_WORK_ROOT = Path("~/.foundry_local_playground/outputs/pptx").expanduser()
 
 
 def normalize_language(raw: Any) -> str | None:
@@ -273,19 +275,26 @@ def slide_requests_table(raw_slide: dict[str, Any]) -> bool:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--slide-title", help="Slide deck title used for workdir naming")
+    parser.add_argument("--slide-title", help="Optional deck title used for output file naming")
     parser.add_argument(
         "--template",
         help="Path to PPTX template (default: <skill-dir>/assets/template.pptx)",
     )
     parser.add_argument(
         "--plan",
-        help="Deck plan source: JSON file path, @<path>, '-' (stdin), or inline JSON object string",
+        help="Deck plan JSON file path",
     )
     parser.add_argument(
         "--work-root",
-        default="~/.foundry_local_playground/output",
-        help="Base output root (default: ~/.foundry_local_playground/output)",
+        default=None,
+        help="Deprecated (ignored). Work dir is fixed to ~/.foundry_local_playground/outputs/pptx/<timestamp>/",
+    )
+    parser.add_argument(
+        "--thread-key",
+        help=(
+            "Optional thread identifier used to reuse one work directory in the same thread "
+            "(default: CODEX_THREAD_ID environment variable)."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -312,7 +321,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=(
             "Inspect template slide masters and print a JSON layout catalog. "
-            "When used, --slide-title/--plan are not required."
+            "When used, --plan is not required."
         ),
     )
     parser.add_argument(
@@ -323,8 +332,6 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.list_layouts:
         return args
-    if not args.slide_title:
-        parser.error("--slide-title is required unless --list-layouts is used.")
     if not args.plan:
         parser.error("--plan is required unless --list-layouts is used.")
     return args
@@ -342,6 +349,54 @@ def normalize_slide_title(raw: str) -> str:
     return cleaned
 
 
+def build_timestamp_dir_name() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
+
+
+def resolve_thread_key(args: argparse.Namespace) -> str:
+    raw = str(args.thread_key or os.getenv("CODEX_THREAD_ID") or "").strip()
+    if raw:
+        return raw
+    return "default-thread"
+
+
+def load_thread_workdir_map(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key, value in data.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        key_clean = key.strip()
+        value_clean = value.strip()
+        if key_clean and value_clean:
+            result[key_clean] = value_clean
+    return result
+
+
+def save_thread_workdir_map(path: Path, mapping: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_raw = tempfile.mkstemp(
+        prefix=".thread_workdirs.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    os.close(fd)
+    tmp_path = Path(tmp_raw)
+    try:
+        tmp_path.write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
 def resolve_skill_dir() -> Path:
     current = Path(__file__).resolve().parent
     for candidate in [current, *current.parents]:
@@ -356,11 +411,41 @@ def resolve_template_path(raw_template: str | None) -> Path:
     return (resolve_skill_dir() / "assets" / "template.pptx").resolve()
 
 
-def prepare_work_paths(args: argparse.Namespace, template_path: Path) -> tuple[Path, Path, Path]:
-    root = Path(args.work_root).expanduser().resolve()
-    slide_dir_name = normalize_slide_title(args.slide_title)
-    work_dir = root / slide_dir_name
-    work_dir.mkdir(parents=True, exist_ok=True)
+def prepare_work_paths(
+    args: argparse.Namespace, template_path: Path
+) -> tuple[Path, Path, Path, str, bool]:
+    root = FIXED_WORK_ROOT.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+
+    thread_key = resolve_thread_key(args)
+    map_path = root / ".thread_workdirs.json"
+    workdir_map = load_thread_workdir_map(map_path)
+
+    reused_work_dir = False
+    work_dir: Path | None = None
+    mapped = workdir_map.get(thread_key)
+    if mapped:
+        mapped_path = Path(mapped).expanduser()
+        if mapped_path.exists() and mapped_path.is_dir():
+            work_dir = mapped_path.resolve()
+            reused_work_dir = True
+        else:
+            workdir_map.pop(thread_key, None)
+
+    if work_dir is None:
+        base_name = build_timestamp_dir_name()
+        suffix = 0
+        while True:
+            candidate = root / (base_name if suffix == 0 else f"{base_name}-{suffix}")
+            try:
+                candidate.mkdir(parents=True, exist_ok=False)
+                work_dir = candidate
+                break
+            except FileExistsError:
+                suffix += 1
+        workdir_map[thread_key] = str(work_dir)
+
+    save_thread_workdir_map(map_path, workdir_map)
 
     staged_template = work_dir / template_path.name
     if template_path.resolve() != staged_template.resolve():
@@ -371,10 +456,13 @@ def prepare_work_paths(args: argparse.Namespace, template_path: Path) -> tuple[P
         if not output_name.lower().endswith(".pptx"):
             output_name = f"{output_name}.pptx"
     else:
-        output_name = f"{slide_dir_name}.pptx"
+        if args.slide_title:
+            output_name = f"{normalize_slide_title(args.slide_title)}.pptx"
+        else:
+            output_name = "deck.pptx"
     output_path = work_dir / output_name
 
-    return work_dir, staged_template, output_path
+    return work_dir, staged_template, output_path, thread_key, reused_work_dir
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -404,10 +492,9 @@ def resolve_plan_input(raw_plan: str, work_dir: Path) -> tuple[dict[str, Any], P
         raise ValueError("--plan is empty.")
 
     if source == "-":
-        plan = load_json_text(sys.stdin.read(), "stdin")
-        staged_plan = (work_dir / "deck_plan.stdin.json").resolve()
-        staged_plan.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
-        return plan, staged_plan, staged_plan
+        raise ValueError(
+            "stdin input is disabled for --plan. Write JSON to a file and pass its path."
+        )
 
     if source.startswith("@"):
         source = source[1:].strip()
@@ -415,15 +502,15 @@ def resolve_plan_input(raw_plan: str, work_dir: Path) -> tuple[dict[str, Any], P
             raise ValueError("Invalid --plan value: @ requires a file path.")
 
     if looks_like_json_object(source):
-        plan = load_json_text(source, "inline --plan JSON")
-        staged_plan = (work_dir / "deck_plan.inline.json").resolve()
-        staged_plan.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
-        return plan, staged_plan, staged_plan
+        raise ValueError(
+            "Inline JSON via --plan is disabled to avoid argv size limits. "
+            "Write JSON to a file and pass the file path."
+        )
 
     plan_path = Path(source).expanduser().resolve()
     if not plan_path.exists():
         raise FileNotFoundError(
-            f"Plan not found: {plan_path}. Provide an existing JSON file path or inline JSON via --plan."
+            f"Plan not found: {plan_path}. Provide an existing JSON file path via --plan."
         )
     if plan_path.suffix.lower() in {".md", ".ppt", ".pptx"}:
         raise ValueError(
@@ -1291,7 +1378,9 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
 
-    work_dir, staged_template, output_path = prepare_work_paths(args, template_path)
+    work_dir, staged_template, output_path, thread_key, reused_work_dir = prepare_work_paths(
+        args, template_path
+    )
     plan, plan_reference_path, staged_plan_path = resolve_plan_input(args.plan, work_dir)
 
     if not isinstance(plan, dict):
@@ -1407,6 +1496,8 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
 
     return {
         "work_dir": work_dir,
+        "thread_key": thread_key,
+        "reused_work_dir": reused_work_dir,
         "plan_path": plan_reference_path,
         "staged_plan": staged_plan_path,
         "staged_template": staged_template,
@@ -1436,6 +1527,8 @@ def main() -> int:
 
     print(f"[OK] Created {result['output_path']}")
     print(f"[OK] Work directory: {result['work_dir']}")
+    print(f"[OK] Thread key: {result['thread_key']}")
+    print(f"[OK] Reused work directory: {result['reused_work_dir']}")
     print(f"[OK] Plan source: {result['plan_path']}")
     print(f"[OK] Staged plan: {result['staged_plan']}")
     print(f"[OK] Staged template: {result['staged_template']}")

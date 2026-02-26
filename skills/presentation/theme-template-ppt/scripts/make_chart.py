@@ -44,10 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--spec",
-        help=(
-            "Chart spec source: JSON file path, @<path>, '-' (stdin), "
-            "or inline JSON object string"
-        ),
+        help="Chart spec JSON file path",
     )
     parser.add_argument(
         "--output",
@@ -300,7 +297,7 @@ def load_json_object(raw: str, source_label: str) -> dict[str, Any]:
 def load_spec_from_path(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(
-            f"Spec not found: {path}. Provide an existing JSON file path or inline JSON via --spec."
+            f"Spec not found: {path}. Provide an existing JSON file path via --spec."
         )
     if path.suffix.lower() in {".md", ".ppt", ".pptx"}:
         raise ValueError(
@@ -361,15 +358,20 @@ def resolve_spec(args: argparse.Namespace) -> tuple[dict[str, Any], Path]:
     if args.spec:
         raw = args.spec.strip()
         if raw == "-":
-            spec = load_json_object(sys.stdin.read(), "stdin")
-            return spec, Path.cwd().resolve()
+            raise ValueError(
+                "stdin input is disabled for --spec. Write JSON to a file and pass its path."
+            )
 
         if raw.startswith("@"):
-            spec_path = Path(raw[1:]).expanduser().resolve()
-            return load_spec_from_path(spec_path), spec_path.parent
+            raw = raw[1:].strip()
+            if not raw:
+                raise ValueError("Invalid --spec value: @ requires a file path.")
 
         if looks_like_json_object(raw):
-            return load_json_object(raw, "inline --spec JSON"), Path.cwd().resolve()
+            raise ValueError(
+                "Inline JSON via --spec is disabled to avoid argv size limits. "
+                "Write JSON to a file and pass the file path."
+            )
 
         spec_path = Path(raw).expanduser().resolve()
         return load_spec_from_path(spec_path), spec_path.parent
