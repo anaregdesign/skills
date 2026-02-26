@@ -7,6 +7,7 @@ Usage:
   python_venv activate <X.Y.Z>
   python_venv deactivate
   python_venv use <X.Y.Z>
+  python_venv <X.Y.Z>        # compatibility: same as "use <X.Y.Z>"
   python_venv add <X.Y.Z> <dep...>
   python_venv path <X.Y.Z>
 EOF
@@ -183,12 +184,19 @@ python_venv__add() {
 
 python_venv() {
   local action="${1:-}"
+  local action_arg2="${2:-}"
   local version
   local target_venv
 
+  # Backward compatibility: accept a bare version as "use <version>".
+  if [[ "$action" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -z "$action_arg2" ]]; then
+    action_arg2="$action"
+    action="use"
+  fi
+
   case "$action" in
     ensure)
-      version="${2:-}"
+      version="$action_arg2"
       [[ -n "$version" ]] || {
         python_venv__usage >&2
         return 1
@@ -196,7 +204,7 @@ python_venv() {
       python_venv__ensure "$version"
       ;;
     activate)
-      version="${2:-}"
+      version="$action_arg2"
       [[ -n "$version" ]] || {
         python_venv__usage >&2
         return 1
@@ -212,7 +220,7 @@ python_venv() {
       python_venv__deactivate
       ;;
     use)
-      version="${2:-}"
+      version="$action_arg2"
       [[ -n "$version" ]] || {
         python_venv__usage >&2
         return 1
@@ -226,7 +234,7 @@ python_venv() {
       python_venv__activate "$version"
       ;;
     add)
-      version="${2:-}"
+      version="$action_arg2"
       [[ -n "$version" && "$#" -ge 3 ]] || {
         python_venv__usage >&2
         return 1
@@ -235,7 +243,7 @@ python_venv() {
       python_venv__add "$version" "$@"
       ;;
     path)
-      version="${2:-}"
+      version="$action_arg2"
       [[ -n "$version" ]] || {
         python_venv__usage >&2
         return 1

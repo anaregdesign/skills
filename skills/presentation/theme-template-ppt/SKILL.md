@@ -29,6 +29,11 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Never pass non-JSON files to:
   - `scripts/make_chart.py --spec`
   - `scripts/build_pptx.py --plan`
+- Keep output language aligned with user prompt language across:
+  - slide titles/body text,
+  - chart titles/labels/legends,
+  - table headers/cells and captions.
+- Set `plan.language` (`ja` or `en`) and pass matching `language` in chart specs.
 - If required runtime dependencies are missing, stop and ask for environment provisioning handoff.
 
 ## Input Contract
@@ -54,6 +59,16 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
   - `python-pptx`
   - `Pillow`
   - `matplotlib`
+  - `japanize-matplotlib`
+
+## Font Policy (Matplotlib Japanese Safety)
+
+- For Japanese charts, ensure one of the following exists:
+  - `japanize-matplotlib` is installed,
+  - `font_path` is specified in chart spec,
+  - Japanese font files are available under `assets/fonts/`.
+- Prefer explicit `font_path` for deterministic rendering in CI/runtime.
+- Keep chart font family consistent with template tone (for example Noto Sans JP).
 
 ## Script Input Contract (Critical)
 
@@ -95,20 +110,27 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
 - Assign `layout_name` for title slide and every content slide in plan JSON.
 - Prefer explicit `layout_name` over numeric `layout`.
 
-### 2. Research Theme on the Web
+### 2. Fix Output Language from Prompt
+
+- Detect user prompt language first (`ja` or `en`).
+- Set `plan.language` to that value.
+- Keep all slide/chart/table text in that language unless user explicitly asks bilingual output.
+- Add `language` to every chart spec and keep it aligned with `plan.language`.
+
+### 3. Research Theme on the Web
 
 - Search the web based on the theme.
 - Prefer primary or official sources.
 - Cross-check key claims with at least two sources.
 - Record source URLs and retrieval dates.
 
-### 3. Draft Slide Headers as Bullets
+### 4. Draft Slide Headers as Bullets
 
 - Produce a bullet list of slide headers before writing slide bodies.
 - Keep at least five headers unless the user specifies a different count.
 - Attach one line of intent per header.
 
-### 4. Deep-Dive Each Header and Build Slide Plan
+### 5. Deep-Dive Each Header and Build Slide Plan
 
 - Expand each header into one slide message.
 - Keep each slide to 2-5 concise bullet points.
@@ -121,7 +143,7 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
 - Add `layout_name` in every slide spec using names from Step 1.
 - Ensure plan input passed to `build_pptx.py` is valid JSON (file/stdin/inline JSON).
 
-### 5. Plan Visuals Early and Aggressively
+### 6. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -131,7 +153,7 @@ python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.js
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is valid JSON (file/stdin/inline JSON) or inline quick args.
 
-### 6. Build Deck from Template
+### 7. Build Deck from Template
 
 - Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
 - Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
@@ -154,10 +176,11 @@ python3 scripts/build_pptx.py \
 python3 scripts/add_slide.py \
   --deck ~/.foundry_local_playground/output/market-outlook-2026/final-deck.pptx \
   --kind content \
-  --spec /absolute/path/slide_spec_001.json
+  --spec /absolute/path/slide_spec_001.json \
+  --language ja
 ```
 
-### 7. Validate Density and Visual Coverage
+### 8. Validate Density and Visual Coverage
 
 - Run `scripts/lint_pptx.py` after generation.
 - Example:
@@ -174,13 +197,19 @@ python3 scripts/lint_pptx.py \
   - replacing text blocks with charts/diagrams/tables.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 8. Perform Final Consistency Pass
+### 9. Enforce Language Consistency
+
+- Confirm `plan.language` matches prompt language.
+- Confirm all slide text and chart labels match `plan.language`.
+- For Japanese charts, confirm selected font can render all labels (no tofu boxes).
+
+### 10. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
 - Check terminology and numeric consistency.
 - Check that visual usage is sufficient and text density is controlled.
 
-### 9. Save and Report
+### 11. Save and Report
 
 - Save final deck and return absolute path.
 - Return:

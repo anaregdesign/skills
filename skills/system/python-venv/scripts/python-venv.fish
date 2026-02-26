@@ -6,6 +6,7 @@ function __python_venv_usage
     printf "  python_venv activate <X.Y.Z>\n"
     printf "  python_venv deactivate\n"
     printf "  python_venv use <X.Y.Z>\n"
+    printf "  python_venv <X.Y.Z>        # compatibility: same as 'use <X.Y.Z>'\n"
     printf "  python_venv add <X.Y.Z> <dep...>\n"
     printf "  python_venv path <X.Y.Z>\n"
 end
@@ -182,6 +183,10 @@ function python_venv
 
     set -l action $argv[1]
     set -l version ""
+    if string match -rq '^[0-9]+\.[0-9]+\.[0-9]+$' -- $action; and test (count $argv) -eq 1
+        set version $action
+        set action use
+    end
     if test (count $argv) -ge 2
         set version $argv[2]
     end

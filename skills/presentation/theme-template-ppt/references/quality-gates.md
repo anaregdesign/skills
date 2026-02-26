@@ -29,6 +29,9 @@ Use these gates during the final quality pass and while running `scripts/lint_pp
 - Keep terminology consistent across all headers and slides.
 - Keep all numeric claims aligned with cited sources.
 - Keep timeline statements consistent (no contradictory dates).
+- Keep output language consistent with user prompt language (`ja` or `en`).
+- Keep chart labels/titles/legends in the same language as slide text.
+- For Japanese charts, ensure selected font renders all glyphs (no tofu boxes).
 
 ## Required final checks
 

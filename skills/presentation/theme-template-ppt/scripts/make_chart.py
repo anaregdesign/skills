@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,9 +14,30 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 
 
 SUPPORTED_TYPES = {"bar", "line", "pie"}
+JAPANESE_CHAR_RE = re.compile(r"[ぁ-ゖァ-ヺー一-龯々〆〤]")
+ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
+LANGUAGE_ALIASES = {
+    "ja": "ja",
+    "jp": "ja",
+    "japanese": "ja",
+    "en": "en",
+    "english": "en",
+}
+JA_FONT_CANDIDATES = [
+    "IPAexGothic",
+    "IPAGothic",
+    "Noto Sans CJK JP",
+    "Noto Sans JP",
+    "Hiragino Sans",
+    "Yu Gothic",
+    "YuGothic",
+    "Meiryo",
+    "TakaoGothic",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -74,6 +96,195 @@ def parse_args() -> argparse.Namespace:
         help="Inline mode y-axis max (used when --spec is omitted).",
     )
     return parser.parse_args()
+
+
+def normalize_language(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    value = str(raw).strip().lower()
+    if not value:
+        return None
+    return LANGUAGE_ALIASES.get(value)
+
+
+def contains_japanese(text: str) -> bool:
+    return bool(JAPANESE_CHAR_RE.search(text))
+
+
+def contains_ascii_letters(text: str) -> bool:
+    return bool(ASCII_LETTER_RE.search(text))
+
+
+def resolve_skill_dir() -> Path:
+    current = Path(__file__).resolve().parent
+    for candidate in [current, *current.parents]:
+        if (candidate / "SKILL.md").exists():
+            return candidate
+    raise RuntimeError(f"Unable to resolve skill directory from script path: {__file__}")
+
+
+def collect_chart_texts(spec: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("title", "x_label", "y_label"):
+        raw = spec.get(key)
+        if raw is not None:
+            text = str(raw).strip()
+            if text:
+                values.append(text)
+
+    labels = spec.get("labels", [])
+    if isinstance(labels, list):
+        for label in labels:
+            text = str(label).strip()
+            if text:
+                values.append(text)
+
+    series = spec.get("series", [])
+    if isinstance(series, list):
+        for item in series:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("name", "")).strip()
+            if text:
+                values.append(text)
+    return values
+
+
+def infer_language_from_text(spec: dict[str, Any]) -> str:
+    texts = collect_chart_texts(spec)
+    ja_count = sum(1 for text in texts if contains_japanese(text))
+    en_count = sum(
+        1
+        for text in texts
+        if contains_ascii_letters(text) and not contains_japanese(text)
+    )
+    if ja_count > 0:
+        return "ja"
+    if en_count > 0:
+        return "en"
+    return "en"
+
+
+def resolve_chart_language(spec: dict[str, Any]) -> str:
+    explicit = normalize_language(spec.get("language"))
+    if explicit:
+        return explicit
+    return infer_language_from_text(spec)
+
+
+def validate_language_consistency(spec: dict[str, Any], language: str) -> None:
+    if bool(spec.get("allow_mixed_language")):
+        return
+
+    texts = collect_chart_texts(spec)
+    if not texts:
+        return
+
+    ja_count = sum(1 for text in texts if contains_japanese(text))
+    en_count = sum(
+        1
+        for text in texts
+        if contains_ascii_letters(text) and not contains_japanese(text)
+    )
+
+    if language == "ja" and ja_count == 0 and en_count > 0:
+        raise ValueError(
+            "Chart language is set to 'ja' but chart labels/titles look non-Japanese. "
+            "Use Japanese labels or set language to 'en'."
+        )
+    if language == "en" and ja_count > 0:
+        raise ValueError(
+            "Chart language is set to 'en' but chart labels/titles include Japanese text. "
+            "Set language to 'ja' or update labels."
+        )
+
+
+def parse_font_family(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        parts = [item.strip() for item in raw.split(",")]
+        return [item for item in parts if item]
+    if isinstance(raw, list):
+        values = [str(item).strip() for item in raw]
+        return [item for item in values if item]
+    raise ValueError("Field 'font_family' must be a string or a list of strings.")
+
+
+def resolve_font_path(spec: dict[str, Any], spec_base_dir: Path) -> Path | None:
+    raw = spec.get("font_path")
+    if raw is None:
+        return None
+    path = Path(str(raw).strip())
+    if not str(path):
+        return None
+    if path.is_absolute():
+        return path
+    return (spec_base_dir / path).resolve()
+
+
+def register_font_file(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"Font file not found: {path}")
+    font_manager.fontManager.addfont(str(path))
+    return font_manager.FontProperties(fname=str(path)).get_name()
+
+
+def discover_asset_fonts() -> list[Path]:
+    fonts_dir = resolve_skill_dir() / "assets" / "fonts"
+    if not fonts_dir.exists():
+        return []
+    matches: list[Path] = []
+    for pattern in ("*.ttf", "*.otf", "*.ttc"):
+        matches.extend(sorted(fonts_dir.glob(pattern)))
+    return matches
+
+
+def configure_font(spec: dict[str, Any], spec_base_dir: Path, language: str) -> str:
+    selected_families: list[str] = parse_font_family(spec.get("font_family"))
+    explicit_font_path = resolve_font_path(spec, spec_base_dir)
+    if explicit_font_path is not None:
+        selected_families.insert(0, register_font_file(explicit_font_path))
+
+    if language == "ja" and explicit_font_path is None:
+        for font_file in discover_asset_fonts():
+            try:
+                selected_families.insert(0, register_font_file(font_file))
+                break
+            except Exception:
+                continue
+
+    installed_names = {entry.name for entry in font_manager.fontManager.ttflist}
+    available_ja = [name for name in JA_FONT_CANDIDATES if name in installed_names]
+
+    if language == "ja":
+        try:
+            import japanize_matplotlib  # type: ignore # noqa: F401
+        except Exception:
+            pass
+
+        if not selected_families and not available_ja and "IPAexGothic" not in installed_names:
+            raise ValueError(
+                "Japanese chart rendering requires a Japanese font. "
+                "Install 'japanize-matplotlib' or set spec.font_path / assets/fonts."
+            )
+        font_order = selected_families + available_ja + ["IPAexGothic", "DejaVu Sans"]
+    else:
+        font_order = selected_families + ["DejaVu Sans"]
+
+    # Keep deterministic order while removing duplicates.
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in font_order:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+
+    matplotlib.rcParams["font.family"] = ["sans-serif"]
+    matplotlib.rcParams["font.sans-serif"] = deduped
+    matplotlib.rcParams["axes.unicode_minus"] = False
+    return deduped[0]
 
 
 def load_json_object(raw: str, source_label: str) -> dict[str, Any]:
@@ -232,11 +443,22 @@ def load_series(
     return series
 
 
-def render_chart(spec: dict[str, Any], output_path: Path) -> None:
+def render_chart(spec: dict[str, Any], output_path: Path, spec_base_dir: Path) -> str:
     chart_type = str(spec.get("chart_type") or spec.get("type") or "bar").strip().lower()
     if chart_type not in SUPPORTED_TYPES:
         allowed = ", ".join(sorted(SUPPORTED_TYPES))
         raise ValueError(f"Unsupported chart_type '{chart_type}'. Allowed: {allowed}")
+
+    style = str(spec.get("style", "seaborn-v0_8-whitegrid")).strip()
+    if style:
+        try:
+            plt.style.use(style)
+        except OSError as exc:
+            raise ValueError(f"Unknown matplotlib style: {style}") from exc
+
+    language = resolve_chart_language(spec)
+    validate_language_consistency(spec, language)
+    active_font = configure_font(spec, spec_base_dir, language)
 
     labels = require_list_of_labels(spec.get("labels"), "labels")
     single_values = require_list_of_values(spec.get("values"), "values") if "values" in spec else []
@@ -326,6 +548,7 @@ def render_chart(spec: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(str(output_path), dpi=dpi)
     plt.close(fig)
+    return active_font
 
 
 def resolve_output(spec_base_dir: Path, spec: dict[str, Any], cli_output: str | None) -> Path:
@@ -346,12 +569,14 @@ def main() -> int:
     try:
         spec, spec_base_dir = resolve_spec(args)
         output_path = resolve_output(spec_base_dir, spec, args.output)
-        render_chart(spec, output_path)
+        active_font = render_chart(spec, output_path, spec_base_dir)
     except Exception as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
 
     print(f"[OK] Chart image generated: {output_path}")
+    print(f"[OK] Language: {resolve_chart_language(spec)}")
+    print(f"[OK] Font: {active_font}")
     return 0
 
 

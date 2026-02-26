@@ -5,6 +5,7 @@ Usage:
   python_venv activate <X.Y.Z>
   python_venv deactivate
   python_venv use <X.Y.Z>
+  python_venv <X.Y.Z>        # compatibility: same as "use <X.Y.Z>"
   python_venv add <X.Y.Z> <dep...>
   python_venv path <X.Y.Z>
 "@
@@ -153,6 +154,14 @@ function Test-NonPythonDependency {
     }
 }
 
+function Test-VersionOnlyAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+    return ($Value -match '^[0-9]+\.[0-9]+\.[0-9]+$')
+}
+
 function Add-PythonVenvDependencies {
     param(
         [Parameter(Mandatory = $true)]
@@ -219,6 +228,12 @@ function python_venv {
     if ([string]::IsNullOrWhiteSpace($Action)) {
         [Console]::Error.WriteLine((Show-PythonVenvUsage))
         throw "Action is required."
+    }
+
+    # Backward compatibility: accept a bare version as "use <version>".
+    if ((Test-VersionOnlyAction -Value $Action) -and [string]::IsNullOrWhiteSpace($Version)) {
+        $Version = $Action
+        $Action = "use"
     }
 
     switch ($Action.ToLowerInvariant()) {

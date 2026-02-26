@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,9 @@ from build_pptx import (
     set_subtitle,
     set_title,
 )
+
+JAPANESE_CHAR_RE = re.compile(r"[ぁ-ゖァ-ヺー一-龯々〆〤]")
+ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +65,96 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable automatic slide-master layout selection by content type",
     )
+    parser.add_argument(
+        "--language",
+        help="Expected slide language: ja or en",
+    )
     return parser.parse_args()
+
+
+def normalize_language(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    value = str(raw).strip().lower()
+    if value in {"ja", "jp", "japanese"}:
+        return "ja"
+    if value in {"en", "english"}:
+        return "en"
+    return None
+
+
+def contains_japanese(text: str) -> bool:
+    return bool(JAPANESE_CHAR_RE.search(text))
+
+
+def contains_ascii_letters(text: str) -> bool:
+    return bool(ASCII_LETTER_RE.search(text))
+
+
+def collect_slide_texts(raw_spec: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("title", "subtitle"):
+        raw = raw_spec.get(key)
+        if raw is not None:
+            text = str(raw).strip()
+            if text:
+                values.append(text)
+
+    bullets = raw_spec.get("bullets", [])
+    if isinstance(bullets, list):
+        for item in bullets:
+            text = str(item).strip()
+            if text:
+                values.append(text)
+
+    visual = raw_spec.get("visual")
+    if isinstance(visual, dict):
+        caption = str(visual.get("caption", "")).strip()
+        if caption:
+            values.append(caption)
+
+    table = raw_spec.get("table")
+    if isinstance(table, dict):
+        headers = table.get("headers", [])
+        rows = table.get("rows", [])
+        if isinstance(headers, list):
+            for header in headers:
+                text = str(header).strip()
+                if text:
+                    values.append(text)
+        if isinstance(rows, list):
+            for row in rows:
+                if not isinstance(row, list):
+                    continue
+                for cell in row:
+                    text = str(cell).strip()
+                    if text:
+                        values.append(text)
+    return values
+
+
+def validate_slide_language(raw_spec: dict[str, Any], expected_language: str | None) -> None:
+    if expected_language is None:
+        return
+    texts = collect_slide_texts(raw_spec)
+    if not texts:
+        return
+
+    ja_count = sum(1 for text in texts if contains_japanese(text))
+    en_count = sum(
+        1
+        for text in texts
+        if contains_ascii_letters(text) and not contains_japanese(text)
+    )
+
+    if expected_language == "ja" and ja_count == 0 and en_count > 0:
+        raise ValueError(
+            "Expected slide language 'ja' but slide text looks non-Japanese."
+        )
+    if expected_language == "en" and ja_count > 0:
+        raise ValueError(
+            "Expected slide language 'en' but slide text includes Japanese."
+        )
 
 
 def resolve_base_dir(raw_base: str | None) -> Path:
@@ -183,6 +276,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     raw_spec, spec_reference_path = resolve_spec_input(args.spec, base_dir)
     if not isinstance(raw_spec, dict):
         raise ValueError("Slide spec must be a JSON object.")
+    expected_language = normalize_language(args.language)
+    if args.language and expected_language is None:
+        raise ValueError("Unsupported --language value. Use 'ja' or 'en'.")
+    validate_slide_language(raw_spec, expected_language)
 
     prs = Presentation(str(deck_path))
     layouts = list_master_layouts(prs)
@@ -211,6 +308,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "deck_path": str(deck_path),
         "kind": args.kind,
+        "language": expected_language or "auto",
         "used_master_auto": used_master_auto,
         "table_added": table_added,
         "visual_added": visual_added,

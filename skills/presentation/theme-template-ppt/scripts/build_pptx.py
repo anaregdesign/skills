@@ -63,6 +63,17 @@ TABLE_LAYOUT_KEYWORDS = (
 )
 
 
+def normalize_language(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    value = str(raw).strip().lower()
+    if value in {"ja", "jp", "japanese"}:
+        return "ja"
+    if value in {"en", "english"}:
+        return "en"
+    return None
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slide-title", help="Slide deck title used for workdir naming")
@@ -801,6 +812,9 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     slides_raw = plan.get("slides")
     if not isinstance(slides_raw, list) or not slides_raw:
         raise ValueError("Plan must contain a non-empty 'slides' list.")
+    expected_language = normalize_language(plan.get("language"))
+    if plan.get("language") not in (None, "") and expected_language is None:
+        raise ValueError("Unsupported plan.language. Use 'ja' or 'en'.")
 
     # Initialize one output PPTX file, then append slides to it one-by-one.
     if staged_template.resolve() != output_path.resolve() or not output_path.exists():
@@ -837,6 +851,8 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
             command.append("--strict-images")
         if args.no_prefer_master_layouts:
             command.append("--no-prefer-master-layouts")
+        if expected_language:
+            command.extend(["--language", expected_language])
 
         completed = subprocess.run(command, capture_output=True, text=True)
         if completed.returncode != 0:
@@ -884,6 +900,7 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
         "visual_count": inserted_visuals,
         "table_count": inserted_tables,
         "master_auto_layout_count": master_auto_layout_count,
+        "language": expected_language or "auto",
     }
 
 
@@ -908,6 +925,7 @@ def main() -> int:
     print(f"[OK] Slides using auto-selected master layouts: {result['master_auto_layout_count']}")
     print(f"[OK] Slides with inserted tables: {result['table_count']}")
     print(f"[OK] Slides with inserted visuals: {result['visual_count']}")
+    print(f"[OK] Language: {result['language']}")
     return 0
 
 

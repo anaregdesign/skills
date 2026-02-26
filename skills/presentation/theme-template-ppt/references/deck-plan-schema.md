@@ -18,6 +18,7 @@ Then copy `layout_name` values from the catalog into every slide spec.
 
 ```json
 {
+  "language": "ja",
   "title_slide": {
     "title": "Theme title",
     "subtitle": "Audience and date",
@@ -72,6 +73,7 @@ Then copy `layout_name` values from the catalog into every slide spec.
 
 - `title_slide` (optional): Adds a title slide before normal slides.
 - `slides` (required): Non-empty list of slide objects.
+- `language` (recommended): Deck language (`ja` or `en`) matching prompt language.
 
 Slide object fields:
 
@@ -105,6 +107,7 @@ Table object fields:
 
 - Resolve relative image paths from the plan JSON location.
 - Fill `layout_name` for title slide and all content slides whenever possible.
+- Keep all slide text in `language` unless bilingual output is explicitly requested.
 - Keep every content slide structured with bullets, a table, or a visual.
 - Prefer one message per slide.
 - Keep body bullets concise so `lint_pptx.py` can pass.
