@@ -215,6 +215,7 @@ def append_title_slide(
         has_table=False,
         has_visual=False,
         has_subtitle=bool(str(raw_spec.get("subtitle", "")).strip()),
+        requested_intent=str(raw_spec.get("intent", "")).strip().lower() or None,
     )
 
     slide = prs.slides.add_slide(layout)
@@ -256,14 +257,40 @@ def append_content_slide(
         has_visual=bool(spec["visual"].get("path")),
         has_subtitle=bool(spec["subtitle"]),
         bullet_count=len(spec["bullets"]),
+        requested_intent=spec.get("intent") or None,
     )
 
     slide = prs.slides.add_slide(layout)
     set_title(slide, spec["title"])
     set_subtitle(slide, spec["subtitle"])
-    set_bullets(slide, spec["bullets"])
-    table_added = add_table(prs, slide, spec["table"])
-    visual_added = add_visual(prs, slide, spec["visual"], spec_reference_path, strict_images)
+    reserved_shape_ids: set[int] = set()
+    intent_key = str(selection_detail.get("intent_key", "")).strip().lower()
+    operation_order = ["visual", "table"]
+    if intent_key in {"table_comparison", "table_focus"}:
+        operation_order = ["table", "visual"]
+
+    table_added = False
+    visual_added = False
+    for operation in operation_order:
+        if operation == "visual" and spec["visual"].get("path"):
+            visual_added = add_visual(
+                prs,
+                slide,
+                spec["visual"],
+                spec_reference_path,
+                strict_images,
+                reserved_shape_ids=reserved_shape_ids,
+                has_bullets=bool(spec["bullets"]),
+            )
+        if operation == "table" and spec["table"]:
+            table_added = add_table(
+                prs,
+                slide,
+                spec["table"],
+                reserved_shape_ids=reserved_shape_ids,
+            )
+
+    set_bullets(slide, spec["bullets"], reserved_shape_ids=reserved_shape_ids)
     add_notes(slide, spec["sources"], spec["speaker_notes"])
 
     used_master_auto = selection_mode == "master_auto"

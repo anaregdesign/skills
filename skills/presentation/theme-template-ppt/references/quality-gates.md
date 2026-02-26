@@ -11,11 +11,12 @@ Use these gates during the final quality pass and while running `scripts/lint_pp
 5. Keep font families and size scale limited and consistent across deck.
 6. Keep color usage consistent (base/accent/warning) and readable contrast.
 7. Keep margins, guides, and alignment consistent on all pages.
-8. Keep density under control (line count, character count, line length).
-9. Keep each content slide structured with bullets, table, or visual.
-10. Keep image/diagram/chart style consistent (aspect ratio, caption style, icon style).
-11. Keep terminology, units, dates, and language consistent.
-12. Keep source notation consistent in speaker notes (`Sources:` section format).
+8. Prefer slide-master placeholders for title/body/visual/table before using absolute coordinates.
+9. Keep density under control (line count, character count, line length).
+10. Keep each content slide structured with bullets, table, or visual.
+11. Keep image/diagram/chart style consistent (aspect ratio, caption style, icon style).
+12. Keep terminology, units, dates, and language consistent.
+13. Keep source notation consistent in speaker notes (`Sources:` section format).
 
 ## Lintable Gates (Automated)
 

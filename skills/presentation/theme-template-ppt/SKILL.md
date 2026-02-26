@@ -30,10 +30,11 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Do not read `assets/template.pptx` as base64 or plain text.
 - Do not run `skill_list_resources` just to inspect template internals.
 - Use only layouts that already exist in template slide masters.
-- Determine layout automatically from slide content type (title/subtitle/bullets/table/visual).
-- Before selecting a layout, verbalize each page intent first (for example: `title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+- Determine layout first from page intent + master-placeholder composition.
+- Before writing detailed page copy, verbalize each page intent first (for example: `title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
 - Match layout by both title semantics and composition features (placeholder counts, column split, title position, visual/table slots), not by a single keyword.
 - Reduce usage bias by preferring less-used layouts when multiple candidates are similarly suitable.
+- Fill selected layout placeholders after layout selection (title/subtitle/body/visual/table) and avoid absolute-position overrides unless explicitly required.
 - Do not rely on plan `layout` or `layout_name`; these are treated as optional metadata.
 - Always include agenda and summary slides.
 - Control section order via `plan.auto_slide_order` (`agenda,title,content,summary` by default).
@@ -176,17 +177,14 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
   - one-line message,
   - one layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
 
-### 6. Deep-Dive Headers and Build Structured Slides
+### 6. Deep-Dive Headers and Build Layout-First Slide Skeleton
 
 - Expand each header into one slide message.
-- Keep each slide to 2-5 concise bullet points.
-- Choose at least one structured format per content slide:
-  - bullets,
-  - table,
-  - diagram/chart image.
+- Decide required placeholder types first (body-only / visual+body / table+body / hybrid).
+- Do not finalize detailed bullet wording before layout selection.
 - Attach source links to factual claims.
 - Keep terminology, units, dates, and language consistent across all slides.
-- Build the plan JSON using `references/deck-plan-schema.md`.
+- Build an intent-first plan skeleton using `references/deck-plan-schema.md`.
 
 ### 7. Emit Required JSON Files Before Build
 
@@ -206,6 +204,7 @@ cat > "$WORK_DIR/deck_plan.json" <<'JSON'
   "slides": [
     {
       "title": "イントロダクション",
+      "intent": "text_brief",
       "bullets": [
         "要点1",
         "要点2"
@@ -225,18 +224,19 @@ scripts/validate_json.py "$WORK_DIR/deck_plan.json"
 - If charts are needed, write chart spec JSON under the same work directory (for example `"$WORK_DIR/chart_spec_001.json"`), then validate it with `scripts/validate_json.py`.
 - Do not call `build_pptx.py` until `"$WORK_DIR/deck_plan.json"` exists and passes validation.
 
-### 8. Decide Slide Content First, Then Select Layout
+### 8. Select Layout First, Then Fill Placeholders
 
-- For each page, decide content first:
-  - title/subtitle,
-  - bullets,
-  - table and/or visual.
-- After content is fixed, verbalize one page intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+- For each page, choose one intent label first (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
 - Select layout automatically from slide masters by matching that intent to:
   - layout title semantics,
   - placeholder composition,
   - and current usage balance.
-- Keep this order strict: `decide content -> select layout`.
+- After layout is selected, fill placeholders in this order:
+  - title/subtitle placeholder,
+  - visual/table placeholder,
+  - body placeholder.
+- Avoid manual absolute coordinates unless layout placeholders are unavailable.
+- Keep this order strict: `select layout -> fill placeholders`.
 
 ### 9. Fix Output Language from Prompt
 

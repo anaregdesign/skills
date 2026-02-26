@@ -27,8 +27,7 @@ When required profiles are missing, the build step clones and adds master layout
 
 ## Authoring Order Rule (Per Slide)
 
-1. Decide what to write on the page first (title/subtitle, bullets, table/visual).
-2. Verbalize one page intent label:
+1. Verbalize one page intent label first:
    - `title_cover`
    - `text_dense`
    - `text_brief`
@@ -37,12 +36,16 @@ When required profiles are missing, the build step clones and adds master layout
    - `table_comparison`
    - `table_focus`
    - `hybrid_data`
-3. Then select layout automatically from existing slide-master layouts by matching:
+2. Select layout automatically from existing slide-master layouts by matching:
    - layout title semantics,
    - composition (placeholder counts, columns, title position),
    - and usage balance across the deck.
+3. Write/finalize page content after layout is selected, and map content into placeholders:
+   - title/subtitle placeholder,
+   - visual/table placeholder,
+   - body placeholder.
 
-Keep this order strict: `decide content -> select layout`.
+Keep this order strict: `select layout -> fill placeholders`.
 
 ## Minimal shape
 
@@ -138,7 +141,7 @@ Slide object fields:
 - `title` (required): Slide title text.
 - `message` (recommended): One-sentence key takeaway; enforce one slide/one message.
 - `story_role` (recommended): Role in story flow (`context`, `problem`, `analysis`, `options`, `recommendation`, `next_action`).
-- `intent` (recommended): Layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
+- `intent` (strongly recommended): Layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`). The renderer selects layout from this first, then fills placeholders.
 - `subtitle` (optional): Subtitle text.
 - `layout` (optional metadata): Ignored by renderer because layout is auto-detected.
 - `layout_name` (optional metadata): Ignored by renderer because layout is auto-detected.

@@ -30,6 +30,18 @@ NON_CONTENT_PLACEHOLDERS = {
     )
     if value is not None
 }
+VISUAL_PLACEHOLDER_TYPES = {
+    value
+    for value in (
+        getattr(PP_PLACEHOLDER, "PICTURE", None),
+        getattr(PP_PLACEHOLDER, "CHART", None),
+        getattr(PP_PLACEHOLDER, "MEDIA_CLIP", None),
+        getattr(PP_PLACEHOLDER, "BITMAP", None),
+        getattr(PP_PLACEHOLDER, "ORG_CHART", None),
+        getattr(PP_PLACEHOLDER, "SLIDE_IMAGE", None),
+    )
+    if value is not None
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -148,6 +160,9 @@ def parse_args() -> argparse.Namespace:
 
 def shape_has_visual(shape: Any) -> bool:
     if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+        return True
+    placeholder_type = get_placeholder_type(shape)
+    if placeholder_type in VISUAL_PLACEHOLDER_TYPES:
         return True
     try:
         if getattr(shape, "has_chart", False) and shape.has_chart:

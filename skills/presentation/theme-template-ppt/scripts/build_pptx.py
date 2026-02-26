@@ -110,6 +110,19 @@ SECTION_LAYOUT_KEYWORDS = (
     "section",
 )
 
+LAYOUT_INTENT_KEYS = (
+    "title_cover",
+    "text_dense",
+    "text_brief",
+    "visual_split",
+    "visual_focus",
+    "table_comparison",
+    "table_focus",
+    "hybrid_data",
+)
+
+OBJECT_PLACEHOLDER = getattr(PP_PLACEHOLDER, "OBJECT", None)
+
 AUTO_SLIDE_ORDER_DEFAULT = ("agenda", "title", "content", "summary")
 AUTO_SLIDE_ORDER_ALIASES = {
     "agenda": "agenda",
@@ -1132,6 +1145,100 @@ def count_layout_usage(prs: Presentation, layouts: list[dict[str, Any]]) -> dict
     return usage
 
 
+def build_layout_intent_profile(intent_key: str, *, has_subtitle: bool) -> dict[str, Any]:
+    profiles: dict[str, dict[str, Any]] = {
+        "title_cover": {
+            "description": "Title/cover page with optional subtitle and minimal body placeholders.",
+            "target_columns": 0,
+            "requires_title": True,
+            "requires_body": False,
+            "expects_visual": False,
+            "expects_table": False,
+            "preferred_tags": {"cover", "title_only", "title"},
+            "discouraged_tags": {"blank", "section", "split", "vertical"},
+        },
+        "hybrid_data": {
+            "description": "Hybrid data page combining visual and tabular information side-by-side.",
+            "target_columns": 2,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": True,
+            "preferred_tags": {"split", "multi_content", "visual_hint", "table_hint"},
+            "discouraged_tags": {"blank", "title_only"},
+        },
+        "table_comparison": {
+            "description": "Comparison page with table and supporting bullets.",
+            "target_columns": 2,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": True,
+            "preferred_tags": {"table_hint", "split", "multi_content"},
+            "discouraged_tags": {"blank", "title_only"},
+        },
+        "table_focus": {
+            "description": "Table-focused page with a single structured data block.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": True,
+            "preferred_tags": {"table_hint", "single_content"},
+            "discouraged_tags": {"blank", "title_only"},
+        },
+        "visual_split": {
+            "description": "Text + visual page with clear split composition.",
+            "target_columns": 2,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": False,
+            "preferred_tags": {"visual_hint", "split", "multi_content", "caption"},
+            "discouraged_tags": {"blank", "title_only"},
+        },
+        "visual_focus": {
+            "description": "Visual-led page with optional short caption.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": True,
+            "expects_table": False,
+            "preferred_tags": {"visual_hint", "caption", "visual_slot"},
+            "discouraged_tags": {"blank", "split"},
+        },
+        "text_dense": {
+            "description": "Text-dense page with 4+ bullets requiring generous body area.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": False,
+            "preferred_tags": {"single_content", "title"},
+            "discouraged_tags": {"blank", "title_only", "section"},
+        },
+        "text_brief": {
+            "description": "Short text page with concise bullets.",
+            "target_columns": 1,
+            "requires_title": True,
+            "requires_body": True,
+            "expects_visual": False,
+            "expects_table": False,
+            "preferred_tags": {"single_content", "section", "title"},
+            "discouraged_tags": {"blank", "title_only"},
+        },
+    }
+    if intent_key not in profiles:
+        allowed = ", ".join(LAYOUT_INTENT_KEYS)
+        raise ValueError(
+            f"Unsupported slide intent: {intent_key!r}. Allowed intents: {allowed}"
+        )
+    profile = dict(profiles[intent_key])
+    profile["key"] = intent_key
+    profile["prefers_subtitle"] = has_subtitle
+    return profile
+
+
 def infer_slide_layout_intent(
     *,
     is_title_slide: bool,
@@ -1140,116 +1247,34 @@ def infer_slide_layout_intent(
     has_visual: bool,
     has_subtitle: bool,
     bullet_count: int,
+    requested_intent: str | None = None,
 ) -> dict[str, Any]:
+    requested = str(requested_intent or "").strip().lower()
+    if requested:
+        profile = build_layout_intent_profile(requested, has_subtitle=has_subtitle)
+        profile["source"] = "requested"
+        return profile
+
     if is_title_slide:
-        return {
-            "key": "title_cover",
-            "description": "Title/cover page with optional subtitle and minimal body placeholders.",
-            "target_columns": 0,
-            "requires_title": True,
-            "requires_body": False,
-            "expects_visual": False,
-            "expects_table": False,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"cover", "title_only", "title"},
-            "discouraged_tags": {"blank", "section", "split", "vertical"},
-        }
+        inferred_key = "title_cover"
+    elif has_table and has_visual:
+        inferred_key = "hybrid_data"
+    elif has_table and has_bullets:
+        inferred_key = "table_comparison"
+    elif has_table:
+        inferred_key = "table_focus"
+    elif has_visual and has_bullets:
+        inferred_key = "visual_split"
+    elif has_visual:
+        inferred_key = "visual_focus"
+    elif has_bullets and bullet_count >= 4:
+        inferred_key = "text_dense"
+    else:
+        inferred_key = "text_brief"
 
-    if has_table and has_visual:
-        return {
-            "key": "hybrid_data",
-            "description": "Hybrid data page combining visual and tabular information side-by-side.",
-            "target_columns": 2,
-            "requires_title": True,
-            "requires_body": True,
-            "expects_visual": True,
-            "expects_table": True,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"split", "multi_content", "visual_hint", "table_hint"},
-            "discouraged_tags": {"blank", "title_only"},
-        }
-
-    if has_table:
-        if has_bullets:
-            return {
-                "key": "table_comparison",
-                "description": "Comparison page with table and supporting bullets.",
-                "target_columns": 2,
-                "requires_title": True,
-                "requires_body": True,
-                "expects_visual": False,
-                "expects_table": True,
-                "prefers_subtitle": has_subtitle,
-                "preferred_tags": {"table_hint", "split", "multi_content"},
-                "discouraged_tags": {"blank", "title_only"},
-            }
-        return {
-            "key": "table_focus",
-            "description": "Table-focused page with a single structured data block.",
-            "target_columns": 1,
-            "requires_title": True,
-            "requires_body": True,
-            "expects_visual": False,
-            "expects_table": True,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"table_hint", "single_content"},
-            "discouraged_tags": {"blank", "title_only"},
-        }
-
-    if has_visual and has_bullets:
-        return {
-            "key": "visual_split",
-            "description": "Text + visual page with clear split composition.",
-            "target_columns": 2,
-            "requires_title": True,
-            "requires_body": True,
-            "expects_visual": True,
-            "expects_table": False,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"visual_hint", "split", "multi_content", "caption"},
-            "discouraged_tags": {"blank", "title_only"},
-        }
-
-    if has_visual:
-        return {
-            "key": "visual_focus",
-            "description": "Visual-led page with optional short caption.",
-            "target_columns": 1,
-            "requires_title": True,
-            "requires_body": True,
-            "expects_visual": True,
-            "expects_table": False,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"visual_hint", "caption", "visual_slot"},
-            "discouraged_tags": {"blank", "split"},
-        }
-
-    if has_bullets and bullet_count >= 4:
-        return {
-            "key": "text_dense",
-            "description": "Text-dense page with 4+ bullets requiring generous body area.",
-            "target_columns": 1,
-            "requires_title": True,
-            "requires_body": True,
-            "expects_visual": False,
-            "expects_table": False,
-            "prefers_subtitle": has_subtitle,
-            "preferred_tags": {"single_content", "title"},
-            "discouraged_tags": {"blank", "title_only", "section"},
-        }
-
-    return {
-        "key": "text_brief",
-        "description": "Short text page with concise bullets.",
-        "target_columns": 1,
-        "requires_title": True,
-        "requires_body": True,
-        "expects_visual": False,
-        "expects_table": False,
-        "prefers_subtitle": has_subtitle,
-        "preferred_tags": {"single_content", "section", "title"},
-        "discouraged_tags": {"blank", "title_only"},
-    }
+    profile = build_layout_intent_profile(inferred_key, has_subtitle=has_subtitle)
+    profile["source"] = "inferred"
+    return profile
 
 
 def _layout_usage_penalty(usage_count: int, best_gap: int) -> int:
@@ -1396,6 +1421,7 @@ def pick_layout(
     has_visual: bool,
     has_subtitle: bool,
     bullet_count: int = 0,
+    requested_intent: str | None = None,
 ) -> tuple[Any, str, dict[str, Any]]:
     del requested_index, requested_name, fallback, prefer_master_layouts
 
@@ -1409,6 +1435,7 @@ def pick_layout(
         has_visual=has_visual,
         has_subtitle=has_subtitle,
         bullet_count=bullet_count,
+        requested_intent=requested_intent,
     )
 
     usage_by_layout = count_layout_usage(prs, layouts)
@@ -1462,35 +1489,149 @@ def pick_layout(
         "master_auto",
         {
             "intent_key": intent["key"],
+            "intent_source": intent.get("source", "inferred"),
             "intent_description": intent["description"],
             "selected_layout_name": selected["name"],
             "selected_layout_tags": selected["tags"],
+            "selected_layout_column_count": int(selected.get("column_count", 0)),
+            "selected_layout_placeholder_profile": {
+                "body": int(selected.get("body_placeholder_count", 0)),
+                "visual": int(selected.get("visual_placeholder_count", 0)),
+                "table": int(selected.get("table_placeholder_count", 0)),
+            },
         },
     )
 
 
-def find_body_shape(slide: Any) -> Any | None:
+def get_placeholder_type(shape: Any) -> Any | None:
+    if not getattr(shape, "is_placeholder", False):
+        return None
+    try:
+        return shape.placeholder_format.type
+    except Exception:
+        return None
+
+
+def is_non_content_placeholder(shape: Any) -> bool:
+    placeholder_type = get_placeholder_type(shape)
+    return placeholder_type in NON_CONTENT_PLACEHOLDERS
+
+
+def clear_shape_text(shape: Any) -> None:
+    if not getattr(shape, "has_text_frame", False):
+        return
+    text_frame = shape.text_frame
+    text_frame.clear()
+
+
+def shape_area(shape: Any) -> int:
+    return int(getattr(shape, "width", 0)) * int(getattr(shape, "height", 0))
+
+
+def find_body_shape(
+    slide: Any, *, reserved_shape_ids: set[int] | None = None
+) -> Any | None:
+    reserved = reserved_shape_ids or set()
     title_shape = slide.shapes.title
+    placeholders: list[Any] = []
     for shape in slide.shapes:
         if shape == title_shape:
             continue
-        if not getattr(shape, "has_text_frame", False):
+        if id(shape) in reserved:
             continue
         if not getattr(shape, "is_placeholder", False):
             continue
-        try:
-            placeholder_type = shape.placeholder_format.type
-        except Exception:
+        if is_non_content_placeholder(shape):
             continue
-        if placeholder_type in BODY_PLACEHOLDERS:
+        placeholders.append(shape)
+
+    placeholders.sort(
+        key=lambda shape: (int(getattr(shape, "top", 0)), int(getattr(shape, "left", 0)))
+    )
+
+    for shape in placeholders:
+        placeholder_type = get_placeholder_type(shape)
+        if placeholder_type in BODY_PLACEHOLDERS and getattr(shape, "has_text_frame", False):
+            return shape
+
+    for shape in placeholders:
+        if getattr(shape, "has_text_frame", False):
             return shape
 
     for shape in slide.shapes:
         if shape == title_shape:
             continue
-        if getattr(shape, "has_text_frame", False):
+        if id(shape) in reserved:
+            continue
+        if not getattr(shape, "has_text_frame", False):
+            continue
+        has_existing_text = any(
+            paragraph.text.strip() for paragraph in shape.text_frame.paragraphs
+        )
+        if not has_existing_text:
             return shape
     return None
+
+
+def find_media_placeholder(
+    slide: Any,
+    *,
+    want_table: bool,
+    reserved_shape_ids: set[int] | None = None,
+) -> Any | None:
+    reserved = reserved_shape_ids or set()
+    title_shape = slide.shapes.title
+    candidates: list[tuple[int, int, int, int, Any]] = []
+
+    for shape in slide.shapes:
+        if shape == title_shape:
+            continue
+        if id(shape) in reserved:
+            continue
+        if not getattr(shape, "is_placeholder", False):
+            continue
+        if is_non_content_placeholder(shape):
+            continue
+        placeholder_type = get_placeholder_type(shape)
+        if placeholder_type in TITLE_PLACEHOLDERS or placeholder_type in SUBTITLE_PLACEHOLDERS:
+            continue
+
+        priority: int | None = None
+        if want_table:
+            if placeholder_type in TABLE_PLACEHOLDERS:
+                priority = 0
+            elif placeholder_type == OBJECT_PLACEHOLDER:
+                priority = 1
+            elif placeholder_type in BODY_PLACEHOLDERS:
+                priority = 2
+            elif placeholder_type in VISUAL_PLACEHOLDERS:
+                priority = 3
+        else:
+            if placeholder_type in VISUAL_PLACEHOLDERS:
+                priority = 0
+            elif placeholder_type == OBJECT_PLACEHOLDER:
+                priority = 1
+            elif placeholder_type in BODY_PLACEHOLDERS:
+                priority = 2
+            elif placeholder_type in TABLE_PLACEHOLDERS:
+                priority = 3
+
+        if priority is None:
+            continue
+        candidates.append(
+            (
+                priority,
+                -shape_area(shape),
+                -int(getattr(shape, "left", 0)),
+                int(getattr(shape, "top", 0)),
+                shape,
+            )
+        )
+
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][4]
 
 
 def set_title(slide: Any, title_text: str) -> None:
@@ -1533,12 +1674,16 @@ def set_subtitle(slide: Any, subtitle_text: str) -> None:
     paragraph.font.size = Pt(20)
 
 
-def set_bullets(slide: Any, bullets: list[str]) -> None:
+def set_bullets(
+    slide: Any, bullets: list[str], *, reserved_shape_ids: set[int] | None = None
+) -> None:
     if not bullets:
         return
-    body_shape = find_body_shape(slide)
+    body_shape = find_body_shape(slide, reserved_shape_ids=reserved_shape_ids)
     if body_shape is None:
-        body_shape = slide.shapes.add_textbox(Inches(0.8), Inches(1.7), Inches(6.0), Inches(4.6))
+        body_shape = slide.shapes.add_textbox(Inches(0.8), Inches(1.7), Inches(8.2), Inches(4.6))
+    elif not getattr(body_shape, "has_text_frame", False):
+        body_shape = slide.shapes.add_textbox(Inches(0.8), Inches(1.7), Inches(8.2), Inches(4.6))
     text_frame = body_shape.text_frame
     text_frame.clear()
     text_frame.word_wrap = True
@@ -1550,7 +1695,13 @@ def set_bullets(slide: Any, bullets: list[str]) -> None:
         paragraph.level = 0
 
 
-def add_table(prs: Presentation, slide: Any, table_spec: dict[str, Any]) -> bool:
+def add_table(
+    prs: Presentation,
+    slide: Any,
+    table_spec: dict[str, Any],
+    *,
+    reserved_shape_ids: set[int] | None = None,
+) -> bool:
     if not table_spec:
         return False
 
@@ -1566,25 +1717,65 @@ def add_table(prs: Presentation, slide: Any, table_spec: dict[str, Any]) -> bool
         if len(row) != column_count:
             raise ValueError("All table rows must match headers length.")
 
-    default_left = int(prs.slide_width * 0.06)
-    default_top = int(prs.slide_height * 0.34)
-    default_width = int(prs.slide_width * 0.88)
-    default_height = int(prs.slide_height * 0.50)
+    target_placeholder = find_media_placeholder(
+        slide, want_table=True, reserved_shape_ids=reserved_shape_ids
+    )
+    if target_placeholder is not None and reserved_shape_ids is not None:
+        reserved_shape_ids.add(id(target_placeholder))
+
+    default_left = (
+        int(getattr(target_placeholder, "left", 0))
+        if target_placeholder is not None
+        else int(prs.slide_width * 0.06)
+    )
+    default_top = (
+        int(getattr(target_placeholder, "top", 0))
+        if target_placeholder is not None
+        else int(prs.slide_height * 0.34)
+    )
+    default_width = (
+        int(getattr(target_placeholder, "width", 0))
+        if target_placeholder is not None
+        else int(prs.slide_width * 0.88)
+    )
+    default_height = (
+        int(getattr(target_placeholder, "height", 0))
+        if target_placeholder is not None
+        else int(prs.slide_height * 0.50)
+    )
 
     left = to_emu(table_spec.get("left"), prs.slide_width, default_left)
     top = to_emu(table_spec.get("top"), prs.slide_height, default_top)
     width = to_emu(table_spec.get("width"), prs.slide_width, default_width)
     height = to_emu(table_spec.get("height"), prs.slide_height, default_height)
 
-    shape = slide.shapes.add_table(
-        rows=len(rows) + 1,
-        cols=column_count,
-        left=left,
-        top=top,
-        width=width,
-        height=height,
-    )
-    table = shape.table
+    table = None
+    if target_placeholder is not None:
+        placeholder_type = get_placeholder_type(target_placeholder)
+        supports_insert = hasattr(target_placeholder, "insert_table")
+        has_manual_box = any(
+            table_spec.get(key) is not None for key in ("left", "top", "width", "height")
+        )
+        if (
+            placeholder_type in TABLE_PLACEHOLDERS
+            and supports_insert
+            and not has_manual_box
+        ):
+            graphic_frame = target_placeholder.insert_table(len(rows) + 1, column_count)
+            table = graphic_frame.table
+        else:
+            clear_shape_text(target_placeholder)
+
+    if table is None:
+        shape = slide.shapes.add_table(
+            rows=len(rows) + 1,
+            cols=column_count,
+            left=left,
+            top=top,
+            width=width,
+            height=height,
+        )
+        table = shape.table
 
     for col_index, header in enumerate(headers):
         cell = table.cell(0, col_index)
@@ -1605,6 +1796,9 @@ def add_visual(
     visual: dict[str, Any],
     plan_path: Path,
     strict_images: bool,
+    *,
+    reserved_shape_ids: set[int] | None = None,
+    has_bullets: bool = False,
 ) -> bool:
     image_ref = visual.get("path")
     if not image_ref:
@@ -1618,26 +1812,90 @@ def add_visual(
         print(f"[WARN] {message}", file=sys.stderr)
         return False
 
-    default_left = int(prs.slide_width * 0.56)
-    default_top = int(prs.slide_height * 0.20)
-    default_width = int(prs.slide_width * 0.38)
+    target_placeholder = find_media_placeholder(
+        slide, want_table=False, reserved_shape_ids=reserved_shape_ids
+    )
+    if target_placeholder is not None and reserved_shape_ids is not None:
+        reserved_shape_ids.add(id(target_placeholder))
+
+    default_left = (
+        int(getattr(target_placeholder, "left", 0))
+        if target_placeholder is not None
+        else int(prs.slide_width * 0.56)
+    )
+    default_top = (
+        int(getattr(target_placeholder, "top", 0))
+        if target_placeholder is not None
+        else int(prs.slide_height * 0.20)
+    )
+    default_width = (
+        int(getattr(target_placeholder, "width", 0))
+        if target_placeholder is not None
+        else int(prs.slide_width * 0.38)
+    )
+    default_height = (
+        int(getattr(target_placeholder, "height", 0))
+        if target_placeholder is not None
+        else int(prs.slide_height * 0.48)
+    )
 
     left = to_emu(visual.get("left"), prs.slide_width, default_left)
     top = to_emu(visual.get("top"), prs.slide_height, default_top)
     width = to_emu(visual.get("width"), prs.slide_width, default_width)
     height_value = visual.get("height")
-    height = None if height_value is None else to_emu(height_value, prs.slide_height, 0)
+    has_manual_box = any(
+        visual.get(key) is not None for key in ("left", "top", "width", "height")
+    )
 
-    if height is None:
-        picture = slide.shapes.add_picture(str(image_path), left, top, width=width)
+    picture = None
+    if (
+        target_placeholder is not None
+        and get_placeholder_type(target_placeholder) in VISUAL_PLACEHOLDERS
+        and hasattr(target_placeholder, "insert_picture")
+        and not has_manual_box
+    ):
+        picture = target_placeholder.insert_picture(str(image_path))
     else:
-        picture = slide.shapes.add_picture(str(image_path), left, top, width=width, height=height)
+        if target_placeholder is not None:
+            clear_shape_text(target_placeholder)
+        if height_value is None:
+            height = default_height if target_placeholder is not None and not has_manual_box else None
+        else:
+            height = to_emu(height_value, prs.slide_height, default_height)
+
+        if height is None:
+            picture = slide.shapes.add_picture(str(image_path), left, top, width=width)
+        else:
+            picture = slide.shapes.add_picture(
+                str(image_path), left, top, width=width, height=height
+            )
 
     caption = str(visual.get("caption", "")).strip()
     if caption:
-        caption_top = picture.top + picture.height + int(Inches(0.05))
+        if not has_bullets:
+            caption_shape = find_body_shape(slide, reserved_shape_ids=reserved_shape_ids)
+            if caption_shape is not None and getattr(caption_shape, "has_text_frame", False):
+                caption_frame = caption_shape.text_frame
+                caption_frame.clear()
+                caption_frame.paragraphs[0].text = caption
+                caption_frame.paragraphs[0].font.size = Pt(12)
+                if reserved_shape_ids is not None:
+                    reserved_shape_ids.add(id(caption_shape))
+                return True
+
+        caption_top = int(picture.top + picture.height + Inches(0.05))
         caption_height = int(Inches(0.45))
-        box = slide.shapes.add_textbox(left, caption_top, picture.width, caption_height)
+        safe_left = max(int(Inches(0.3)), int(picture.left))
+        safe_width = min(
+            int(picture.width),
+            int(prs.slide_width - safe_left - Inches(0.3)),
+        )
+        if caption_top + caption_height > int(prs.slide_height - Inches(0.2)):
+            caption_top = max(
+                int(Inches(0.2)),
+                int(picture.top - caption_height - Inches(0.05)),
+            )
+        box = slide.shapes.add_textbox(safe_left, caption_top, safe_width, caption_height)
         paragraph = box.text_frame.paragraphs[0]
         paragraph.text = caption
         paragraph.font.size = Pt(12)
@@ -1741,9 +1999,17 @@ def normalize_slide_spec(raw: Any, index: int) -> dict[str, Any]:
     else:
         raise ValueError(f"Slide #{index} field 'table' must be an object.")
 
+    intent_raw = str(raw.get("intent", "")).strip().lower()
+    if intent_raw and intent_raw not in LAYOUT_INTENT_KEYS:
+        allowed = ", ".join(LAYOUT_INTENT_KEYS)
+        raise ValueError(
+            f"Slide #{index} field 'intent' must be one of: {allowed}"
+        )
+
     return {
         "layout": raw.get("layout"),
         "layout_name": str(raw.get("layout_name", "")).strip(),
+        "intent": intent_raw,
         "title": title,
         "subtitle": str(raw.get("subtitle", "")).strip(),
         "bullets": bullets,
@@ -1778,6 +2044,7 @@ def add_title_slide_if_requested(
         has_table=False,
         has_visual=False,
         has_subtitle=bool(str(title_spec.get("subtitle", "")).strip()),
+        requested_intent=str(title_spec.get("intent", "")).strip().lower() or None,
     )
     slide = prs.slides.add_slide(layout)
     set_title(slide, str(title_spec.get("title", "")).strip())
