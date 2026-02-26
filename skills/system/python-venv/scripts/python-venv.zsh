@@ -1,0 +1,178 @@
+typeset -g PYTHON_VENV_ZSH_SCRIPT_PATH="${(%):-%N}"
+
+python_venv__usage() {
+  cat <<'EOF'
+Usage:
+  python_venv ensure <X.Y.Z>
+  python_venv activate <X.Y.Z>
+  python_venv deactivate
+  python_venv use <X.Y.Z>
+  python_venv add <X.Y.Z> <dep...>
+  python_venv path <X.Y.Z>
+EOF
+}
+
+python_venv__skill_dir() {
+  local script_dir
+  script_dir="${PYTHON_VENV_ZSH_SCRIPT_PATH:A:h}"
+  print -r -- "${script_dir:h}"
+}
+
+python_venv__env_dir() {
+  local version="$1"
+  print -r -- "$(python_venv__skill_dir)/assets/v${version}"
+}
+
+python_venv__require_uv() {
+  if ! command -v uv >/dev/null 2>&1; then
+    print -u2 -- "uv command not found in PATH."
+    return 1
+  fi
+}
+
+python_venv__ensure() {
+  local version="$1"
+  local env_dir
+
+  if [[ -z "$version" ]]; then
+    print -u2 -- "Usage: python_venv ensure <X.Y.Z>"
+    return 1
+  fi
+
+  python_venv__require_uv || return 1
+  env_dir="$(python_venv__env_dir "$version")"
+  mkdir -p "$env_dir" || return 1
+
+  if [[ ! -f "$env_dir/pyproject.toml" ]]; then
+    (
+      cd "$env_dir" &&
+        uv init --bare --python "$version" --name "python_v${version//./_}"
+    ) || return 1
+  fi
+
+  (
+    cd "$env_dir" &&
+      uv venv --python "$version"
+  ) || return 1
+}
+
+python_venv__activate() {
+  local version="$1"
+  local env_dir
+  local activate_path
+
+  if [[ -z "$version" ]]; then
+    print -u2 -- "Usage: python_venv activate <X.Y.Z>"
+    return 1
+  fi
+
+  env_dir="$(python_venv__env_dir "$version")"
+  activate_path="$env_dir/.venv/bin/activate"
+
+  if [[ ! -f "$activate_path" ]]; then
+    python_venv__ensure "$version" || return 1
+  fi
+
+  source "$activate_path"
+}
+
+python_venv__deactivate() {
+  if [[ -z "${VIRTUAL_ENV:-}" ]]; then
+    return 0
+  fi
+
+  if type deactivate >/dev/null 2>&1; then
+    deactivate
+    return $?
+  fi
+
+  print -u2 -- "A virtual environment is active, but deactivate function is unavailable."
+  return 1
+}
+
+python_venv__add() {
+  local version="$1"
+  local env_dir
+
+  shift
+  if [[ -z "$version" || "$#" -eq 0 ]]; then
+    print -u2 -- "Usage: python_venv add <X.Y.Z> <dep...>"
+    return 1
+  fi
+
+  python_venv__ensure "$version" || return 1
+  env_dir="$(python_venv__env_dir "$version")"
+
+  (
+    cd "$env_dir" &&
+      uv add "$@" &&
+      uv lock &&
+      uv sync
+  ) || return 1
+}
+
+python_venv() {
+  local action="${1:-}"
+  local version
+  local target_venv
+
+  case "$action" in
+    ensure)
+      version="${2:-}"
+      [[ -n "$version" ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      python_venv__ensure "$version"
+      ;;
+    activate)
+      version="${2:-}"
+      [[ -n "$version" ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      target_venv="$(python_venv__env_dir "$version")/.venv"
+      if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
+        python_venv__deactivate || return 1
+      fi
+      python_venv__activate "$version"
+      ;;
+    deactivate)
+      python_venv__deactivate
+      ;;
+    use)
+      version="${2:-}"
+      [[ -n "$version" ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      python_venv__ensure "$version" || return 1
+      target_venv="$(python_venv__env_dir "$version")/.venv"
+      if [[ -n "${VIRTUAL_ENV:-}" && "${VIRTUAL_ENV}" != "$target_venv" ]]; then
+        python_venv__deactivate || return 1
+      fi
+      python_venv__activate "$version"
+      ;;
+    add)
+      version="${2:-}"
+      [[ -n "$version" && "$#" -ge 3 ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      shift 2
+      python_venv__add "$version" "$@"
+      ;;
+    path)
+      version="${2:-}"
+      [[ -n "$version" ]] || {
+        python_venv__usage >&2
+        return 1
+      }
+      python_venv__env_dir "$version"
+      ;;
+    *)
+      python_venv__usage >&2
+      return 1
+      ;;
+  esac
+}

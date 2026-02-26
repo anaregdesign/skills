@@ -1,0 +1,216 @@
+function Show-PythonVenvUsage {
+@"
+Usage:
+  python_venv ensure <X.Y.Z>
+  python_venv activate <X.Y.Z>
+  python_venv deactivate
+  python_venv use <X.Y.Z>
+  python_venv add <X.Y.Z> <dep...>
+  python_venv path <X.Y.Z>
+"@
+}
+
+function Get-PythonVenvSkillDir {
+    (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
+
+function Get-PythonVenvDir {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+    Join-Path (Get-PythonVenvSkillDir) ("assets/v{0}" -f $Version)
+}
+
+function Assert-PythonVenvUv {
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        throw "uv command not found in PATH."
+    }
+}
+
+function Ensure-PythonVenv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    Assert-PythonVenvUv
+    $envDir = Get-PythonVenvDir -Version $Version
+    New-Item -ItemType Directory -Path $envDir -Force | Out-Null
+
+    $previousLocation = Get-Location
+    try {
+        Set-Location -LiteralPath $envDir
+
+        if (-not (Test-Path -LiteralPath (Join-Path $envDir "pyproject.toml"))) {
+            & uv init --bare --python $Version --name ("python_v" + $Version.Replace(".", "_"))
+            if ($LASTEXITCODE -ne 0) {
+                throw "uv init failed with exit code $LASTEXITCODE."
+            }
+        }
+
+        & uv venv --python $Version
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv venv failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Set-Location -LiteralPath $previousLocation
+    }
+}
+
+function Get-PythonVenvActivateScript {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    $envDir = Get-PythonVenvDir -Version $Version
+    $unixActivate = Join-Path (Join-Path $envDir ".venv") "bin/Activate.ps1"
+    $windowsActivate = Join-Path (Join-Path $envDir ".venv") "Scripts/Activate.ps1"
+
+    if (Test-Path -LiteralPath $unixActivate) {
+        return $unixActivate
+    }
+    if (Test-Path -LiteralPath $windowsActivate) {
+        return $windowsActivate
+    }
+    return $null
+}
+
+function Activate-PythonVenv {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    $activatePath = Get-PythonVenvActivateScript -Version $Version
+    if ($null -eq $activatePath) {
+        Ensure-PythonVenv -Version $Version
+        $activatePath = Get-PythonVenvActivateScript -Version $Version
+    }
+
+    if ($null -eq $activatePath) {
+        throw "Activate script not found for version $Version."
+    }
+
+    . $activatePath
+}
+
+function Deactivate-PythonVenv {
+    if ([string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
+        return
+    }
+
+    if (Get-Command deactivate -ErrorAction SilentlyContinue) {
+        deactivate
+        return
+    }
+
+    throw "A virtual environment is active, but deactivate function is unavailable."
+}
+
+function Add-PythonVenvDependencies {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Dependencies
+    )
+
+    Ensure-PythonVenv -Version $Version
+    $envDir = Get-PythonVenvDir -Version $Version
+
+    $previousLocation = Get-Location
+    try {
+        Set-Location -LiteralPath $envDir
+
+        & uv add @Dependencies
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv add failed with exit code $LASTEXITCODE."
+        }
+
+        & uv lock
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv lock failed with exit code $LASTEXITCODE."
+        }
+
+        & uv sync
+        if ($LASTEXITCODE -ne 0) {
+            throw "uv sync failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Set-Location -LiteralPath $previousLocation
+    }
+}
+
+function python_venv {
+    param(
+        [Parameter(Position = 0)]
+        [string]$Action,
+        [Parameter(Position = 1)]
+        [string]$Version,
+        [Parameter(Position = 2, ValueFromRemainingArguments = $true)]
+        [string[]]$Dependencies
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Action)) {
+        [Console]::Error.WriteLine((Show-PythonVenvUsage))
+        throw "Action is required."
+    }
+
+    switch ($Action.ToLowerInvariant()) {
+        "ensure" {
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                [Console]::Error.WriteLine((Show-PythonVenvUsage))
+                throw "Version is required for ensure."
+            }
+            Ensure-PythonVenv -Version $Version
+        }
+        "activate" {
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                [Console]::Error.WriteLine((Show-PythonVenvUsage))
+                throw "Version is required for activate."
+            }
+            $targetVenv = Join-Path (Get-PythonVenvDir -Version $Version) ".venv"
+            if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV) -and $env:VIRTUAL_ENV -ne $targetVenv) {
+                Deactivate-PythonVenv
+            }
+            Activate-PythonVenv -Version $Version
+        }
+        "deactivate" {
+            Deactivate-PythonVenv
+        }
+        "use" {
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                [Console]::Error.WriteLine((Show-PythonVenvUsage))
+                throw "Version is required for use."
+            }
+            Ensure-PythonVenv -Version $Version
+            $targetVenv = Join-Path (Get-PythonVenvDir -Version $Version) ".venv"
+            if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV) -and $env:VIRTUAL_ENV -ne $targetVenv) {
+                Deactivate-PythonVenv
+            }
+            Activate-PythonVenv -Version $Version
+        }
+        "add" {
+            if ([string]::IsNullOrWhiteSpace($Version) -or $null -eq $Dependencies -or $Dependencies.Count -eq 0) {
+                [Console]::Error.WriteLine((Show-PythonVenvUsage))
+                throw "Version and dependencies are required for add."
+            }
+            Add-PythonVenvDependencies -Version $Version -Dependencies $Dependencies
+        }
+        "path" {
+            if ([string]::IsNullOrWhiteSpace($Version)) {
+                [Console]::Error.WriteLine((Show-PythonVenvUsage))
+                throw "Version is required for path."
+            }
+            Get-PythonVenvDir -Version $Version
+        }
+        default {
+            [Console]::Error.WriteLine((Show-PythonVenvUsage))
+            throw "Unknown action: $Action"
+        }
+    }
+}
