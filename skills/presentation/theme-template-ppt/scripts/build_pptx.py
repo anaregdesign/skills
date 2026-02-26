@@ -69,7 +69,11 @@ def parse_args() -> argparse.Namespace:
         "--template",
         help="Path to PPTX template (default: <skill-dir>/assets/template.pptx)",
     )
-    parser.add_argument("--plan", required=True, help="Path to deck plan JSON")
+    parser.add_argument(
+        "--plan",
+        required=True,
+        help="Deck plan source: JSON file path, @<path>, '-' (stdin), or inline JSON object string",
+    )
     parser.add_argument(
         "--work-root",
         default="~/.foundry_local_playground/output",
@@ -147,9 +151,62 @@ def prepare_work_paths(args: argparse.Namespace, template_path: Path) -> tuple[P
 
 def load_json(path: Path) -> dict[str, Any]:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"Plan file is not UTF-8 text: {path}. --plan expects a UTF-8 JSON file."
+        ) from exc
+    return load_json_text(text, str(path))
+
+
+def load_json_text(raw: str, source_label: str) -> dict[str, Any]:
+    try:
+        return json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON: {path}: {exc}") from exc
+        raise ValueError(f"Invalid JSON: {source_label}: {exc}") from exc
+
+
+def looks_like_json_object(raw: str) -> bool:
+    return raw.lstrip().startswith("{")
+
+
+def resolve_plan_input(raw_plan: str, work_dir: Path) -> tuple[dict[str, Any], Path, Path]:
+    source = raw_plan.strip()
+    if not source:
+        raise ValueError("--plan is empty.")
+
+    if source == "-":
+        plan = load_json_text(sys.stdin.read(), "stdin")
+        staged_plan = (work_dir / "deck_plan.stdin.json").resolve()
+        staged_plan.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        return plan, staged_plan, staged_plan
+
+    if source.startswith("@"):
+        source = source[1:].strip()
+        if not source:
+            raise ValueError("Invalid --plan value: @ requires a file path.")
+
+    if looks_like_json_object(source):
+        plan = load_json_text(source, "inline --plan JSON")
+        staged_plan = (work_dir / "deck_plan.inline.json").resolve()
+        staged_plan.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
+        return plan, staged_plan, staged_plan
+
+    plan_path = Path(source).expanduser().resolve()
+    if not plan_path.exists():
+        raise FileNotFoundError(
+            f"Plan not found: {plan_path}. Provide an existing JSON file path or inline JSON via --plan."
+        )
+    if plan_path.suffix.lower() in {".md", ".ppt", ".pptx"}:
+        raise ValueError(
+            f"Unsupported plan file type: {plan_path.suffix}. --plan expects deck plan JSON, not {plan_path.name}."
+        )
+
+    plan = load_json(plan_path)
+    staged_plan = (work_dir / plan_path.name).resolve()
+    if plan_path.resolve() != staged_plan:
+        shutil.copy2(plan_path, staged_plan)
+    return plan, plan_path, staged_plan
 
 
 def to_emu(value: Any, total: int, default_emu: int) -> int:
@@ -674,20 +731,14 @@ def add_title_slide_if_requested(
 
 def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     template_path = resolve_template_path(args.template)
-    plan_path = Path(args.plan).expanduser().resolve()
     prefer_master_layouts = not args.no_prefer_master_layouts
 
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
-    if not plan_path.exists():
-        raise FileNotFoundError(f"Plan not found: {plan_path}")
 
     work_dir, staged_template, output_path = prepare_work_paths(args, template_path)
-    staged_plan_path = work_dir / plan_path.name
-    if plan_path.resolve() != staged_plan_path.resolve():
-        shutil.copy2(plan_path, staged_plan_path)
+    plan, plan_reference_path, staged_plan_path = resolve_plan_input(args.plan, work_dir)
 
-    plan = load_json(plan_path)
     if not isinstance(plan, dict):
         raise ValueError("Top-level plan JSON must be an object.")
     slides_raw = plan.get("slides")
@@ -732,7 +783,7 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
         set_bullets(slide, spec["bullets"])
         if add_table(prs, slide, spec["table"]):
             inserted_tables += 1
-        if add_visual(prs, slide, spec["visual"], plan_path, args.strict_images):
+        if add_visual(prs, slide, spec["visual"], plan_reference_path, args.strict_images):
             inserted_visuals += 1
         add_notes(slide, spec["sources"], spec["speaker_notes"])
         added_slides += 1
@@ -740,6 +791,8 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     prs.save(str(output_path))
     return {
         "work_dir": work_dir,
+        "plan_path": plan_reference_path,
+        "staged_plan": staged_plan_path,
         "staged_template": staged_template,
         "output_path": output_path,
         "slide_count": added_slides,
@@ -759,6 +812,8 @@ def main() -> int:
 
     print(f"[OK] Created {result['output_path']}")
     print(f"[OK] Work directory: {result['work_dir']}")
+    print(f"[OK] Plan source: {result['plan_path']}")
+    print(f"[OK] Staged plan: {result['staged_plan']}")
     print(f"[OK] Staged template: {result['staged_template']}")
     print(f"[OK] Slides: {result['slide_count']}")
     print(f"[OK] Slides using auto-selected master layouts: {result['master_auto_layout_count']}")

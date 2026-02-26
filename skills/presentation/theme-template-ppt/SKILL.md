@@ -7,6 +7,15 @@ description: Create PowerPoint decks from a provided theme and the template at a
 
 Create a PowerPoint deck from a theme and an assets template while keeping each slide visually clear and non-busy.
 
+## Skill Boundary
+
+- This skill handles:
+  - research and draft slide content,
+  - create deck/chart JSON inputs,
+  - run `make_chart.py`, `build_pptx.py`, and `lint_pptx.py`,
+  - return output paths and source list.
+- Run this workflow in an already prepared Python environment.
+
 ## Input Contract
 
 - Collect: theme, target audience, objective, preferred slide count, and deadline.
@@ -26,10 +35,31 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 ## Python Dependencies
 
 - Install: `python3 -m pip install -r scripts/requirements.txt`
+- Optional isolated environment:
+  1. `python3 -m venv .venv`
+  2. `source .venv/bin/activate`
+  3. `python3 -m pip install -r scripts/requirements.txt`
 - Packages:
   - `python-pptx`
   - `Pillow`
   - `matplotlib`
+
+## Script Input Contract (Critical)
+
+- `scripts/make_chart.py --spec` accepts:
+  - JSON file path,
+  - `@<path>`,
+  - `-` (read JSON from stdin),
+  - inline JSON object string.
+- `scripts/make_chart.py` also supports inline quick args when `--spec` is omitted:
+  - `--type`, `--labels`, `--values`, optional `--title`.
+- `scripts/build_pptx.py --plan` accepts:
+  - JSON file path,
+  - `@<path>`,
+  - `-` (read JSON from stdin),
+  - inline JSON object string.
+- Never pass Markdown (`.md`) or PPT/PPTX files as `--spec` or `--plan`.
+- Always prepare machine-readable JSON before running build/lint steps.
 
 ## Workflow
 
@@ -57,6 +87,7 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Attach source links to factual claims.
 - Build the plan JSON using `references/deck-plan-schema.md`.
 - Add `layout_name` in slide specs when you need strict master layout control.
+- Ensure plan input passed to `build_pptx.py` is valid JSON (file/stdin/inline JSON).
 
 ### 4. Plan Visuals Early and Aggressively
 
@@ -64,7 +95,9 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Target at least one visual slide in every two slides.
 - Use tables for comparisons, KPI snapshots, and option matrices.
 - Generate charts/figures with `scripts/make_chart.py` when needed.
+- Build chart JSON from `references/chart-spec-schema.md`.
 - Save generated images to a predictable folder (for example `assets/generated/`).
+- Ensure chart input passed to `make_chart.py` is valid JSON (file/stdin/inline JSON) or inline quick args.
 
 ### 5. Build Deck from Template
 
@@ -122,4 +155,5 @@ python3 scripts/lint_pptx.py \
 ## References
 
 - `references/deck-plan-schema.md`: Plan schema for `build_pptx.py`.
+- `references/chart-spec-schema.md`: Chart schema for `make_chart.py`.
 - `references/quality-gates.md`: Slide density and visual-usage thresholds.

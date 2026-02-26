@@ -12,10 +12,20 @@ description: Provide Python environment provisioning with uv under this skill's 
 - Never depend on caller `cwd` to choose project location.
 - Do not run only `source .../python-venv.<shell>`; always execute an action in the same command.
 - This skill performs environment provisioning only. Do not execute user Python code in this skill.
+- Do not generate business/domain artifacts (for example deck plans, chart specs, PPTX files).
 - If the requested version does not exist yet, create it and activate it.
 - For dependency changes, run `uv add`, then `uv lock`, then `uv sync` in the target version project.
 - If version is not specified, default to `3.12.8`.
 - Call `path` at most once at the end of provisioning. Do not poll it in a loop.
+
+## Handoff Contract
+
+- Scope of this skill: create/switch Python virtual environments and manage Python packages only.
+- After provisioning, return only:
+  - version used,
+  - resolved environment directory from `python_venv path <version>`,
+  - packages added (if any).
+- Do not continue into domain workflow steps after this handoff.
 
 ## Minimal Work Units
 
