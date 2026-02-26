@@ -122,6 +122,7 @@ Table object fields:
 ## Notes
 
 - Resolve relative image paths from the plan JSON location.
+- For `mcp-mermaid` diagrams, keep image files under the same work directory (recommended: `assets/generated/mermaid/` when `deck_plan.json` is in `"$WORK_DIR"`).
 - Keep all slide text in `language` unless bilingual output is explicitly requested.
 - Keep every content slide structured with bullets, a table, or a visual.
 - Prefer one message per slide.
