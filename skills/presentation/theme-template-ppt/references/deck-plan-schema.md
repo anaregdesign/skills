@@ -2,8 +2,9 @@
 
 Use this JSON format as input to `scripts/build_pptx.py`.
 Write plan JSON to a file and pass that file path to `--plan` (inline JSON is not supported).
-Run `build_pptx.py` so output is created in `~/.foundry_local_playground/outputs/pptx/<thread_id>/`.
-The same thread always reuses that directory on later runs.
+Run `scripts/ensure_workdir_key.bash` first, then run `scripts/build_pptx.py` under
+`~/.foundry_local_playground/outputs/pptx/<work_key>/`.
+The same thread reuses the same `THEME_TEMPLATE_PPT_WORK_KEY` on later runs.
 Each item in `slides[]` can also be passed directly to `scripts/add_slide.py --kind content --spec <slide_spec.json>`.
 
 `build_pptx.py` always auto-inserts agenda (`目次`/`Agenda`) and summary (`まとめ`/`Summary`) sections.
@@ -17,7 +18,7 @@ Default order is: `["agenda", "title", "content", "summary"]`.
 Inspect template layouts before authoring the plan:
 
 ```bash
-python3 scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
+scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 ```
 
 Use this catalog to understand available title/content/table/visual-oriented layouts.

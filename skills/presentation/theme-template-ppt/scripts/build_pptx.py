@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -98,6 +99,11 @@ SLIDE_LAYOUT_CONTENT_TYPE = (
     "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
 )
 FIXED_WORK_ROOT = Path("~/.foundry_local_playground/outputs/pptx").expanduser()
+WORKDIR_KEY_ENV = "THEME_TEMPLATE_PPT_WORK_KEY"
+WORKDIR_KEY_ENV_FALLBACKS = (
+    "PPTX_WORKDIR_KEY",
+    "CODEX_THREAD_ID",
+)
 
 
 def normalize_language(raw: Any) -> str | None:
@@ -286,13 +292,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--work-root",
         default=None,
-        help="Deprecated (ignored). Work dir is fixed to ~/.foundry_local_playground/outputs/pptx/<thread_id>/",
+        help="Deprecated (ignored). Work dir is fixed to ~/.foundry_local_playground/outputs/pptx/<work_key>/",
     )
     parser.add_argument(
         "--thread-key",
         help=(
             "Optional thread identifier used to reuse one work directory in the same thread "
-            "(default: CODEX_THREAD_ID environment variable)."
+            f"(default: {WORKDIR_KEY_ENV}, fallback: {', '.join(WORKDIR_KEY_ENV_FALLBACKS)})."
         ),
     )
     parser.add_argument(
@@ -348,11 +354,27 @@ def normalize_slide_title(raw: str) -> str:
     return cleaned
 
 
-def resolve_thread_key(args: argparse.Namespace) -> str:
-    raw = str(args.thread_key or os.getenv("CODEX_THREAD_ID") or "").strip()
-    if raw:
-        return raw
-    return "default-thread"
+def generate_workdir_key() -> str:
+    return f"wk-{uuid.uuid4().hex}"
+
+
+def resolve_thread_key(args: argparse.Namespace) -> tuple[str, str, bool]:
+    from_arg = str(args.thread_key or "").strip()
+    if from_arg:
+        return from_arg, "arg:--thread-key", False
+
+    from_env = str(os.getenv(WORKDIR_KEY_ENV) or "").strip()
+    if from_env:
+        return from_env, f"env:{WORKDIR_KEY_ENV}", False
+
+    for fallback_env in WORKDIR_KEY_ENV_FALLBACKS:
+        fallback_value = str(os.getenv(fallback_env) or "").strip()
+        if fallback_value:
+            return fallback_value, f"env:{fallback_env}", False
+
+    generated = generate_workdir_key()
+    os.environ[WORKDIR_KEY_ENV] = generated
+    return generated, "generated", True
 
 
 def normalize_thread_dir_name(raw: str) -> str:
@@ -376,11 +398,13 @@ def resolve_template_path(raw_template: str | None) -> Path:
 
 def prepare_work_paths(
     args: argparse.Namespace, template_path: Path
-) -> tuple[Path, Path, Path, str, bool]:
+) -> tuple[Path, Path, Path, str, str, bool, bool]:
     root = FIXED_WORK_ROOT.resolve()
     root.mkdir(parents=True, exist_ok=True)
 
-    thread_key = resolve_thread_key(args)
+    thread_key_raw, thread_key_source, generated_workdir_key = resolve_thread_key(args)
+    thread_key = normalize_thread_dir_name(thread_key_raw)
+    os.environ[WORKDIR_KEY_ENV] = thread_key
     work_dir_name = normalize_thread_dir_name(thread_key)
     work_dir = (root / work_dir_name).resolve()
     reused_work_dir = work_dir.exists()
@@ -401,7 +425,15 @@ def prepare_work_paths(
             output_name = "deck.pptx"
     output_path = work_dir / output_name
 
-    return work_dir, staged_template, output_path, thread_key, reused_work_dir
+    return (
+        work_dir,
+        staged_template,
+        output_path,
+        thread_key,
+        thread_key_source,
+        generated_workdir_key,
+        reused_work_dir,
+    )
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -1317,9 +1349,15 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
 
-    work_dir, staged_template, output_path, thread_key, reused_work_dir = prepare_work_paths(
-        args, template_path
-    )
+    (
+        work_dir,
+        staged_template,
+        output_path,
+        thread_key,
+        thread_key_source,
+        generated_workdir_key,
+        reused_work_dir,
+    ) = prepare_work_paths(args, template_path)
     plan, plan_reference_path, staged_plan_path = resolve_plan_input(args.plan, work_dir)
 
     if not isinstance(plan, dict):
@@ -1436,6 +1474,9 @@ def build_deck(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "work_dir": work_dir,
         "thread_key": thread_key,
+        "thread_key_source": thread_key_source,
+        "generated_workdir_key": generated_workdir_key,
+        "workdir_key_env": WORKDIR_KEY_ENV,
         "reused_work_dir": reused_work_dir,
         "plan_path": plan_reference_path,
         "staged_plan": staged_plan_path,
@@ -1467,6 +1508,9 @@ def main() -> int:
     print(f"[OK] Created {result['output_path']}")
     print(f"[OK] Work directory: {result['work_dir']}")
     print(f"[OK] Thread key: {result['thread_key']}")
+    print(f"[OK] Thread key source: {result['thread_key_source']}")
+    print(f"[OK] Workdir env key: {result['workdir_key_env']}={result['thread_key']}")
+    print(f"[OK] Generated new workdir key: {result['generated_workdir_key']}")
     print(f"[OK] Reused work directory: {result['reused_work_dir']}")
     print(f"[OK] Plan source: {result['plan_path']}")
     print(f"[OK] Staged plan: {result['staged_plan']}")
