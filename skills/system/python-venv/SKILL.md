@@ -5,14 +5,12 @@ description: |
   Trigger this skill first whenever the conversation context requires Python
   script execution, package management, or dependency error handling.
   Manage per-version environments at `<skill-dir>/assets/vX.Y.Z/.venv`.
-  Supports direct module execution (`--module`) and generated-code execution
-  (`--code` / `--code-base64` / `--code-chunk`) by saving scripts into
-  `<skill-dir>/assets/vX.Y.Z/src/` before running them.
-  When asked to "write and run" Python, use generated-code mode instead of
-  asking the user to create files manually.
-  For MCP `skill_run_script`, one argument may be capped (for example 512 chars),
-  so use repeated `--code-chunk` for longer scripts.
-  If switched in the same shell, plain `python` uses the selected environment.
+  On macOS/Linux, setup/switch also install python/python3 shims that resolve to
+  PYTHON_VENV_ACTIVE_PYTHON_BIN from assets/.env.
+  After setup/switch, plain `python ...` and `python3 ...` should run in the
+  active env (no run-python runner required) when the shim directory is on PATH.
+  When code is generated in conversation, save it to a .py file first, then run
+  it with `python <file.py>`.
 ---
 
 # Python Venv
@@ -91,25 +89,23 @@ powershell -ExecutionPolicy ByPass `
 
 Run Python in selected project env (script/module/generated code):
 
+Recommended (macOS/Linux): plain `python` / `python3` command (no runner).
+
 ```bash
 # macOS / Linux
-bash scripts/run-python.sh [--python <version>] --script <abs-or-rel-path.py> [-- <script-args...>]
-bash scripts/run-python.sh [--python <version>] --module <module.name> [-- <module-args...>]
-bash scripts/run-python.sh [--python <version>] --code "<python-code>" [--name <generated.py>] [-- <script-args...>]
-bash scripts/run-python.sh [--python <version>] --code-base64 <base64-python-code> [--name <generated.py>] [-- <script-args...>]
-bash scripts/run-python.sh [--python <version>] --code-chunk "<part1>" --code-chunk "<part2>" [--name <generated.py>] [-- <script-args...>]
+source scripts/switch-python.sh --python 3.12.10
+python /abs/path/to/script.py
+python -m markitdown /abs/path/to/input.pptx
 ```
 
 ```powershell
 # Windows PowerShell
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  [-PythonVersion <version>] `
-  (-ScriptPath <abs-or-rel-path.py> | -ModuleName <module.name> | -Code <python-code> | -CodeBase64 <base64-python-code> | -CodeChunk <part>) `
-  [-GeneratedScriptName <generated.py>] `
-  [-DryRun] `
-  [-- <script-args...>]
+. .\scripts\switch-python.ps1 -PythonVersion 3.12.10
+python C:\abs\path\to\script.py
+python -m markitdown C:\abs\path\to\input.pptx
 ```
+
+Optional compatibility runner (`run-python.*`) is still available for non-interactive usage.
 
 Version remove script:
 
@@ -138,6 +134,11 @@ powershell -ExecutionPolicy ByPass `
 
 `--python` を省略できるのは、`assets/.env` に `PYTHON_VENV_ACTIVE_VERSION` がある場合のみ。
 
+macOS/Linux の shim 配置:
+- 基本: `~/.local/bin/python`, `~/.local/bin/python3`
+- 追加: `uv` 実行ファイルのある directory が別で書き込み可能なら、そちらにも link を配置
+- `~/.local/bin` が PATH に無い場合は警告を出す
+
 ## Dependency Map
 
 ### setup-*
@@ -165,9 +166,9 @@ powershell -ExecutionPolicy ByPass `
 
 ### run-python.*
 
-- 役割: 対象 version project の env で Python を実行する（`.py` 実行 / `-m module` 実行 / base64コード保存実行）
-- 入力: `--script <path.py>` または `--module <module.name>` または `--code <python-code>` または `--code-base64 <base64>` または `--code-chunk <part>`（複数回指定可）
-- 出力: 対象 mode で Python が実行され、必要時は `assets/vX.Y.Z/src/<name>.py` が生成される
+- 役割: 互換用ランナー（非対話で version/project 指定を強制したい場合のみ）
+- 入力: `--script` / `--module` / `--code` / `--code-base64` / `--code-chunk`
+- 出力: 対象 mode で Python が実行される
 - 依存: `setup-*` で作成済みの `assets/vX.Y.Z/.venv` と `assets/vX.Y.Z/pyproject.toml`
 
 ### remove-python.*
@@ -184,11 +185,8 @@ bash scripts/setup-macos.sh --dry-run --python 3.12
 bash scripts/setup-linux.sh --dry-run --python 3.12
 bash scripts/switch-python.sh --dry-run
 bash scripts/add-deps.sh --dry-run --python 3.12 requests rich
-bash scripts/run-python.sh --dry-run --python 3.12 --script /abs/path/to/task.py -- --example arg
-bash scripts/run-python.sh --dry-run --python 3.12 --module markitdown -- /abs/path/to/input.pptx
-bash scripts/run-python.sh --dry-run --python 3.12 --code "print('hello')" --name hello.py
-bash scripts/run-python.sh --dry-run --python 3.12 --code-base64 cHJpbnQoIkhlbGxvIikK --name hello.py
-bash scripts/run-python.sh --dry-run --python 3.12 --code-chunk "print('hello')" --code-chunk "\nprint('world')" --name hello.py
+source scripts/switch-python.sh --python 3.12
+python /abs/path/to/task.py
 bash scripts/remove-python.sh --dry-run
 ```
 
@@ -207,30 +205,9 @@ powershell -ExecutionPolicy ByPass `
   -Packages requests,rich `
   -DryRun
 powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  [-PythonVersion 3.12] `
-  -ModuleName markitdown `
-  -DryRun `
-  -- C:\abs\path\to\input.pptx
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  [-PythonVersion 3.12] `
-  -Code "print('hello')" `
-  -GeneratedScriptName hello.py `
-  -DryRun
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  [-PythonVersion 3.12] `
-  -CodeBase64 cHJpbnQoIkhlbGxvIikK `
-  -GeneratedScriptName hello.py `
-  -DryRun
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  [-PythonVersion 3.12] `
-  -CodeChunk "print('hello')" `
-  -CodeChunk "`nprint('world')" `
-  -GeneratedScriptName hello.py `
-  -DryRun
+  -File scripts/switch-python.ps1 `
+  [-PythonVersion 3.12]
+python C:\abs\path\to\task.py
 powershell -ExecutionPolicy ByPass `
   -File scripts/remove-python.ps1 `
   [-PythonVersion 3.12.10] `
@@ -267,18 +244,18 @@ powershell -ExecutionPolicy ByPass `
 - `assets/vX.Y.Z/uv.lock` 更新
 - 対象 env に依存が同期済み
 
-### Step 4: `run-python.*` で実行する（script/module/generated code）
+### Step 4: スクリプトを保存して `python` で実行する（推奨）
 
 依存関係:
 - Step 1
 - 必要に応じて Step 3
 
 実行ルール:
-- `.py` 実行時は `--script` を使い、配置済み path をそのまま使う（絶対 path 推奨）
-- Python module実行時は `--module` を使う（`python -m` 相当）
-- ワンライナー/短いコードは `--code`（PowerShellは `-Code`）を使う
-- 生成コード実行時は `--code-base64` を使う（必要なら `--name` でファイル名を指定）
-- 長いコードでMCP引数長制限に当たる場合は `--code-chunk`（PowerShellは `-CodeChunk`）を複数回使う
+- 生成したコードは必ず `.py` として保存してから実行する
+- 保存先は `assets/vX.Y.Z/src/` か、対象作業ディレクトリ配下を使う
+- 実行は原則 `python <file.py>` または `python -m <module>` を使う
+- macOS/Linux では `switch-python.sh` 実行後、shim 経由で `python` が active env を指す
+- Windows では current shell で実行する場合は `switch-python.ps1` を dot-source してから `python` を実行する
 
 同一 shell で `python` 実行する場合（Step 2 を source 済み）:
 
@@ -290,47 +267,23 @@ python /abs/path/to/script.py
 非対話実行（MCP / 別プロセス）で確実に env 指定する場合:
 
 ```bash
-bash scripts/run-python.sh --python 3.12.10 --script /abs/path/to/script.py -- --arg1 value1
-bash scripts/run-python.sh --python 3.12.10 --module markitdown -- /abs/path/to/slides.pptx
-bash scripts/run-python.sh --python 3.12.10 --code "print('hello world')" --name hello_world.py
-bash scripts/run-python.sh --python 3.12.10 --code-base64 cHJpbnQoImhlbGxvIHdvcmxkIikK --name hello_world.py
-bash scripts/run-python.sh --python 3.12.10 --code-chunk "import sys\n" --code-chunk "print(sys.version)\n" --name hello_world.py
+bash scripts/switch-python.sh --python 3.12.10
+python /abs/path/to/script.py --arg1 value1
+python -m markitdown /abs/path/to/slides.pptx
 ```
 
 ```powershell
 powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  -PythonVersion 3.12.10 `
-  -ScriptPath C:\abs\path\to\script.py `
-  -- --arg1 value1
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  -PythonVersion 3.12.10 `
-  -ModuleName markitdown `
-  -- C:\abs\path\to\slides.pptx
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  -PythonVersion 3.12.10 `
-  -Code "print('hello world')" `
-  -GeneratedScriptName hello_world.py
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  -PythonVersion 3.12.10 `
-  -CodeBase64 cHJpbnQoImhlbGxvIHdvcmxkIikK `
-  -GeneratedScriptName hello_world.py
-powershell -ExecutionPolicy ByPass `
-  -File scripts/run-python.ps1 `
-  -PythonVersion 3.12.10 `
-  -CodeChunk "import sys`n" `
-  -CodeChunk "print(sys.version)`n" `
-  -GeneratedScriptName hello_world.py
+  -File scripts/switch-python.ps1 `
+  -PythonVersion 3.12.10
+python C:\abs\path\to\script.py --arg1 value1
+python -m markitdown C:\abs\path\to\slides.pptx
 ```
 
 コンテキスト内で生成された script text を実行する場合:
-- 1行程度のコードなら `run-python.*` の `--code`（PowerShellは `-Code`）を使う
-- `run-python.*` の `--code-base64`（PowerShellは `-CodeBase64`）で直接実行できる
-- 長文コードは `run-python.*` の `--code-chunk`（PowerShellは `-CodeChunk`）を複数回指定して保存してから実行する
-- 生成ファイル名を固定したい場合のみ `--name` / `-GeneratedScriptName` を使う
+- まず `.py` ファイルへ保存する（MCP引数で長文コードを直接渡さない）
+- その後 `python <saved_file.py>` で実行する
+- 互換用途で `run-python.*` を使う場合も、長文は `--code-chunk` で分割する
 
 ### Step 5: 環境破損時は `remove-python.*` の後に `setup-*` で再作成し、必要なら `switch-python.*` で切替える
 
@@ -343,16 +296,16 @@ powershell -ExecutionPolicy ByPass `
 - version ごとに project と依存を分離する。
 - `assets/vX.Y.Z/pyproject.toml` と `assets/vX.Y.Z/uv.lock` で管理する。
 - setup/switch/add/remove/run はこの skill の scripts を使う。
-- `setup-*` は環境作成/同期のみ、`switch-python.*` は切替のみ、`add-deps.*` は依存追加のみ、`run-python.*` は実行のみ、`remove-python.*` は削除のみを担当する。
+- `setup-*` は環境作成/同期のみ、`switch-python.*` は切替のみ、`add-deps.*` は依存追加のみ、`run-python.*` は互換実行、`remove-python.*` は削除のみを担当する。
 - setup/switch/add/remove/run 実行時に cwd を変更しない。
 - 重要な環境変数は `assets/.env` に永続化し、各 script は `assets/.env` を参照する。
+- macOS/Linux の setup/switch 実行時に `~/.local/bin/python` と `~/.local/bin/python3` の shim を更新し、active env の Python を指す。
+- macOS/Linux で `~/.local/bin` が PATH に無い場合は `python` が解決されないため、PATH へ追加する。
 - 非 source の `switch-python.*` は current shell を変更しない。
-- current shell で通常 `python` を使いたい場合は `switch-python.*` を source / dot-source で実行する。
-- 非対話実行では `run-python.*` により `uv --project <project> run python ...` を使って対象 project env を明示する。
-- `run-python.*` の実行モード（script/module/code/code-base64/code-chunk）は1つだけ指定する。
-- `run-python.*` でインライン実行が必要な場合は `--code` / `--code-base64` を使い、`--script -c` や `--script -` は使わない。
-- MCPの `skill_run_script` では1引数の長さ制限に注意し、長いコードは `--code-chunk` で分割して渡す。
-- 生成コードは必ず `assets/vX.Y.Z/src/<name>.py` に保存してから実行する（直接 `--script -c` 方式は使わない）。
+- current shell で即座に反映したい場合は `switch-python.*` を source / dot-source で実行する。
+- 非対話実行でも、まず `switch-python.*` で active version を更新してから `python ...` を実行する。
+- 生成コードは必ず `.py` として保存してから `python ...` で実行する（直接長文を引数で渡さない）。
+- MCPの `skill_run_script` には引数長制限があるため、長文コードを直接 `args` に埋め込まない。
 - `skill_run_script` の `path` には `scripts/<file>` だけを渡す（`../` を含めない）。外部 script path は `args` で渡す。
 - 実行時の path は絶対 path を優先する。
 - `add-deps.*` はこの skill が作成した env（`<skill-dir>/assets/vX.Y.Z/.venv`）だけを対象にする。

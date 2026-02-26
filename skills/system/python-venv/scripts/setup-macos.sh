@@ -44,6 +44,7 @@ DEFAULT_SKILL_DIR="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
 SKILL_DIR="${PYTHON_VENV_SKILL_DIR:-${DEFAULT_SKILL_DIR}}"
 ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR:-${SKILL_DIR}/assets}"
 ENV_FILE="${ASSETS_BASE_DIR}/.env"
+ENSURE_SHIMS_SCRIPT="${SCRIPT_DIR}/ensure-python-shims.sh"
 
 resolve_python_spec() {
   local python_json=""
@@ -222,6 +223,16 @@ else
 fi
 run_cmd uv --project "${PROJECT_DIR}" sync --python "${PYTHON_BIN}"
 persist_env_file
+if [[ ! -f "${ENSURE_SHIMS_SCRIPT}" ]]; then
+  echo "Shim helper script not found: ${ENSURE_SHIMS_SCRIPT}" >&2
+  exit 1
+fi
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  bash "${ENSURE_SHIMS_SCRIPT}" --dry-run --assets-dir "${ASSETS_BASE_DIR}" --env-file "${ENV_FILE}"
+else
+  bash "${ENSURE_SHIMS_SCRIPT}" --assets-dir "${ASSETS_BASE_DIR}" --env-file "${ENV_FILE}"
+fi
 
+echo "Plain 'python' / 'python3' should resolve to the active env when shim link directories are on PATH."
 echo "Done."
 echo "Activate with: source ${VENV_DIR}/bin/activate"

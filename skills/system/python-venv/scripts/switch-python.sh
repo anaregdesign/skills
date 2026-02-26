@@ -72,18 +72,62 @@ DEFAULT_SKILL_DIR="$(cd -P "${SCRIPT_DIR}/.." && pwd)"
 SKILL_DIR="${PYTHON_VENV_SKILL_DIR:-${DEFAULT_SKILL_DIR}}"
 ASSETS_BASE_DIR="${PYTHON_VENV_ASSETS_DIR:-${SKILL_DIR}/assets}"
 ENV_FILE="${ASSETS_BASE_DIR}/.env"
+ENSURE_SHIMS_SCRIPT="${SCRIPT_DIR}/ensure-python-shims.sh"
 
 resolve_version_from_uv() {
   local python_json=""
   local resolved_version=""
+  local version_from_assets=""
 
-  python_json="$(
-    uv python list "${NORMALIZED_REQUEST}" --managed-python --only-installed --output-format json 2>/dev/null || true
-  )"
-  resolved_version="$(printf '%s\n' "${python_json}" | grep -o '"version":"[0-9.]*"' | head -n1 | cut -d'"' -f4 || true)"
+  resolve_version_from_assets() {
+    local dir=""
+    local base=""
+    local version=""
+    local matches=()
+
+    for dir in "${ASSETS_BASE_DIR}"/v*; do
+      [[ -d "${dir}" ]] || continue
+      base="${dir##*/}"
+      [[ "${base}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+      version="${base#v}"
+
+      case "${NORMALIZED_REQUEST}" in
+        *.*.*)
+          [[ "${version}" == "${NORMALIZED_REQUEST}" ]] || continue
+          ;;
+        *.*)
+          [[ "${version}" == "${NORMALIZED_REQUEST}".* ]] || continue
+          ;;
+        *)
+          [[ "${version}" == "${NORMALIZED_REQUEST}".* ]] || continue
+          ;;
+      esac
+      matches+=("${version}")
+    done
+
+    if [[ ${#matches[@]} -eq 0 ]]; then
+      return 1
+    fi
+
+    printf '%s\n' "${matches[@]}" | sort -V | tail -n1
+  }
+
+  if command -v uv >/dev/null 2>&1; then
+    python_json="$(
+      uv python list "${NORMALIZED_REQUEST}" --managed-python --only-installed --output-format json 2>/dev/null || true
+    )"
+    resolved_version="$(printf '%s\n' "${python_json}" | grep -o '"version":"[0-9.]*"' | head -n1 | cut -d'"' -f4 || true)"
+  fi
 
   if [[ -z "${resolved_version}" ]]; then
-    echo "No uv-managed Python found for request: ${NORMALIZED_REQUEST}" >&2
+    version_from_assets="$(resolve_version_from_assets || true)"
+    if [[ -n "${version_from_assets}" ]]; then
+      resolved_version="${version_from_assets}"
+    fi
+  fi
+
+  if [[ -z "${resolved_version}" ]]; then
+    echo "No Python env found for request: ${NORMALIZED_REQUEST}" >&2
     echo "Run setup-macos.sh or setup-linux.sh first." >&2
     return 1
   fi
@@ -215,11 +259,6 @@ if [[ "${IS_SOURCED}" -ne 1 ]]; then
   NON_SOURCE_MODE=1
 fi
 
-if ! command -v uv >/dev/null 2>&1; then
-  echo "uv is not available. Run setup-macos.sh or setup-linux.sh first." >&2
-  exit_with_code 1
-fi
-
 validate_version_request "${PYTHON_REQUEST}" || exit_with_code 1
 resolve_version_from_uv || exit_with_code 1
 
@@ -231,13 +270,24 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "+ deactivate (if active)"
   echo "+ source ${ACTIVATE_SCRIPT}"
   echo "+ write ${ENV_FILE}"
+  if [[ ! -f "${ENSURE_SHIMS_SCRIPT}" ]]; then
+    echo "Shim helper script not found: ${ENSURE_SHIMS_SCRIPT}" >&2
+    exit_with_code 1
+  fi
+  bash "${ENSURE_SHIMS_SCRIPT}" --dry-run --assets-dir "${ASSETS_BASE_DIR}" --env-file "${ENV_FILE}" || exit_with_code 1
   exit_with_code 0
 fi
 
 if [[ "${NON_SOURCE_MODE}" -eq 1 ]]; then
   persist_env_file
+  if [[ ! -f "${ENSURE_SHIMS_SCRIPT}" ]]; then
+    echo "Shim helper script not found: ${ENSURE_SHIMS_SCRIPT}" >&2
+    exit_with_code 1
+  fi
+  bash "${ENSURE_SHIMS_SCRIPT}" --assets-dir "${ASSETS_BASE_DIR}" --env-file "${ENV_FILE}" || exit_with_code 1
   echo "Saved active version to ${ENV_FILE}."
   echo "Note: non-sourced execution cannot modify current shell."
+  echo "Plain 'python' / 'python3' will use the selected env in processes where shim link directories are on PATH."
   echo "If you need immediate shell activation, run:"
   echo "  source scripts/switch-python.sh --python ${PYTHON_REQUEST}"
   exit_with_code 0
@@ -248,5 +298,11 @@ if command -v deactivate >/dev/null 2>&1; then
 fi
 source "${ACTIVATE_SCRIPT}"
 persist_env_file
+if [[ ! -f "${ENSURE_SHIMS_SCRIPT}" ]]; then
+  echo "Shim helper script not found: ${ENSURE_SHIMS_SCRIPT}" >&2
+  exit_with_code 1
+fi
+bash "${ENSURE_SHIMS_SCRIPT}" --assets-dir "${ASSETS_BASE_DIR}" --env-file "${ENV_FILE}" || exit_with_code 1
+echo "Plain 'python' / 'python3' will use the selected env in processes where shim link directories are on PATH."
 echo "Activated VIRTUAL_ENV: ${VIRTUAL_ENV}"
 exit_with_code 0

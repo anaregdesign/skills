@@ -95,6 +95,40 @@ validate_version_request() {
 resolve_version_from_uv() {
   local python_json=""
   local resolved_version=""
+  local version_from_assets=""
+
+  resolve_version_from_assets() {
+    local dir=""
+    local base=""
+    local version=""
+    local matches=()
+
+    for dir in "${ASSETS_BASE_DIR}"/v*; do
+      [[ -d "${dir}" ]] || continue
+      base="${dir##*/}"
+      [[ "${base}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+      version="${base#v}"
+
+      case "${NORMALIZED_REQUEST}" in
+        *.*.*)
+          [[ "${version}" == "${NORMALIZED_REQUEST}" ]] || continue
+          ;;
+        *.*)
+          [[ "${version}" == "${NORMALIZED_REQUEST}".* ]] || continue
+          ;;
+        *)
+          [[ "${version}" == "${NORMALIZED_REQUEST}".* ]] || continue
+          ;;
+      esac
+      matches+=("${version}")
+    done
+
+    if [[ ${#matches[@]} -eq 0 ]]; then
+      return 1
+    fi
+
+    printf '%s\n' "${matches[@]}" | sort -V | tail -n1
+  }
 
   python_json="$(
     uv python list "${NORMALIZED_REQUEST}" --managed-python --only-installed --output-format json 2>/dev/null || true
@@ -102,7 +136,14 @@ resolve_version_from_uv() {
   resolved_version="$(printf '%s\n' "${python_json}" | grep -o '"version":"[0-9.]*"' | head -n1 | cut -d'"' -f4 || true)"
 
   if [[ -z "${resolved_version}" ]]; then
-    echo "No uv-managed Python found for request: ${NORMALIZED_REQUEST}" >&2
+    version_from_assets="$(resolve_version_from_assets || true)"
+    if [[ -n "${version_from_assets}" ]]; then
+      resolved_version="${version_from_assets}"
+    fi
+  fi
+
+  if [[ -z "${resolved_version}" ]]; then
+    echo "No Python env found for request: ${NORMALIZED_REQUEST}" >&2
     echo "Run setup-macos.sh or setup-linux.sh first." >&2
     return 1
   fi
