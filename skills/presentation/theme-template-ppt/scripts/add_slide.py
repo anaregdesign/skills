@@ -52,7 +52,10 @@ def parse_args() -> argparse.Namespace:
         "--fallback-layout",
         type=int,
         default=1,
-        help="Deprecated (ignored). Layout is always auto-detected from slide masters.",
+        help=(
+            "Deprecated (ignored). Lock layout with spec.layout_name/spec.layout; "
+            "otherwise layout is auto-ranked from slide masters."
+        ),
     )
     parser.add_argument(
         "--strict-images",

@@ -1,6 +1,6 @@
 ---
 name: theme-template-ppt
-description: Create PowerPoint decks from assets/template.pptx by first inspecting template slide-master layouts, then automatically selecting the best existing master layout per slide content. Use when asked to research a topic, draft slide headers, expand headers into slide-ready content, generate chart/table visuals, run build/lint scripts, and return final .pptx outputs. Do not use for Python environment provisioning (use python-venv).
+description: Create PowerPoint decks from assets/template.pptx by first structuring each slide's core claim, then inspecting/ranking template slide-master layouts, deciding and locking the assigned layout (`layout_name` or `layout`) when needed, and finally writing content to fit selected placeholders. Use when asked to research a topic, draft slide headers, expand headers into slide-ready content, generate chart/table visuals, run build/lint scripts, and return final .pptx outputs. Do not use for Python environment provisioning (use python-venv).
 ---
 
 # Theme Template PPT
@@ -35,7 +35,10 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
 - Match layout by both title semantics and composition features (placeholder counts, column split, title position, visual/table slots), not by a single keyword.
 - Reduce usage bias by preferring less-used layouts when multiple candidates are similarly suitable.
 - Fill selected layout placeholders after layout selection (title/subtitle/body/visual/table) and avoid absolute-position overrides unless explicitly required.
-- Do not rely on plan `layout` or `layout_name`; these are treated as optional metadata.
+- When a layout has multiple body placeholders, distribute bullets across suitable body placeholders (prefer larger text slots first) instead of forcing all bullets into one box.
+- Use scripts only for deterministic steps (layout inspection/ranking, build/lint, placeholder insertion).
+- Let LLM handle semantic work (per-slide claim structuring, candidate comparison reasoning, and rewriting content to fit selected placeholder slots).
+- After deciding layout, lock it in plan using `layout_name` (preferred) or `layout` (catalog index). If omitted, renderer auto-selects.
 - Always include agenda and summary slides.
 - Control section order via `plan.auto_slide_order` (`agenda,title,content,summary` by default).
 - The runtime template can be replaced for each use; always inspect and validate masters every run.
@@ -104,6 +107,8 @@ Create a PowerPoint deck from a theme and an assets template while keeping each 
   - `--type`, `--labels`, `--values`, optional `--title`.
 - `scripts/build_pptx.py --plan` accepts:
   - JSON file path only.
+- `scripts/build_pptx.py --suggest-layouts --plan` accepts:
+  - JSON file path only, and prints ranked layout candidates per slide.
 - `scripts/add_slide.py --spec` accepts:
   - JSON file path only.
 - Never pass Markdown, text requirements, or PPT/PPTX files as `--spec` or `--plan`.
@@ -169,24 +174,24 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 - The script auto-selects one of these existing master layouts for each slide.
 - If required profiles are missing (title/content/visual/table), the script clones and adds missing layouts.
 
-### 5. Draft Story Headers and Page Intent
+### 5. Draft Story Headers and Per-Slide Claim
 
 - Produce a bullet list of slide headers before writing slide bodies.
 - Keep at least five headers unless the user specifies a different count.
 - For each header, attach:
-  - one-line message,
+  - one-line claim/message,
   - one layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
 
-### 6. Deep-Dive Headers and Build Layout-First Slide Skeleton
+### 6. Build Message-First Skeleton (No Final Copy Yet)
 
-- Expand each header into one slide message.
+- Expand each header into one slide object with `message` and `intent` first.
 - Decide required placeholder types first (body-only / visual+body / table+body / hybrid).
-- Do not finalize detailed bullet wording before layout selection.
+- Do not finalize detailed bullet wording before layout decision.
 - Attach source links to factual claims.
 - Keep terminology, units, dates, and language consistent across all slides.
 - Build an intent-first plan skeleton using `references/deck-plan-schema.md`.
 
-### 7. Emit Required JSON Files Before Build
+### 7. Emit Skeleton JSON and Validate
 
 - Resolve the working directory once and keep it in this thread:
 
@@ -224,28 +229,45 @@ scripts/validate_json.py "$WORK_DIR/deck_plan.json"
 - If charts are needed, write chart spec JSON under the same work directory (for example `"$WORK_DIR/chart_spec_001.json"`), then validate it with `scripts/validate_json.py`.
 - Do not call `build_pptx.py` until `"$WORK_DIR/deck_plan.json"` exists and passes validation.
 
-### 8. Select Layout First, Then Fill Placeholders
+### 8. Review Layout Candidates and Decide Assigned Layout
 
-- For each page, choose one intent label first (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`).
-- Select layout automatically from slide masters by matching that intent to:
-  - layout title semantics,
-  - placeholder composition,
-  - and current usage balance.
-- After layout is selected, fill placeholders in this order:
+- Run per-slide candidate ranking from skeleton JSON:
+
+```bash
+WORK_DIR="$HOME/.foundry_local_playground/outputs/pptx/$THEME_TEMPLATE_PPT_WORK_KEY"
+scripts/build_pptx.py \
+  --plan "$WORK_DIR/deck_plan.json" \
+  --suggest-layouts \
+  --candidate-limit 3 \
+  --suggestions-report "$WORK_DIR/layout-suggestions.json"
+```
+
+- For each slide, compare candidates using:
+  - claim/message fit,
+  - placeholder profile (`body/visual/table` slots),
+  - column split and title position.
+- Decide assigned layout per slide and lock it in plan:
+  - prefer `layout_name`,
+  - optionally use `layout` (catalog index from `layout-catalog.json` / suggestions output).
+
+### 9. Rewrite Content to Fit Selected Layout Placeholders
+
+- Let LLM rewrite bullets/captions after layout lock so content matches selected blank structure.
+- Fill placeholders in this order:
   - title/subtitle placeholder,
   - visual/table placeholder,
-  - body placeholder.
+  - body placeholders (distribute bullets across suitable slots; prioritize larger text areas).
 - Avoid manual absolute coordinates unless layout placeholders are unavailable.
-- Keep this order strict: `select layout -> fill placeholders`.
+- Keep this order strict: `claim -> candidate review -> layout decision -> content rewrite -> fill placeholders`.
 
-### 9. Fix Output Language from Prompt
+### 10. Fix Output Language from Prompt
 
 - Detect user prompt language first (`ja` or `en`).
 - Set `plan.language` to that value.
 - Keep all slide/chart/table text in that language unless user explicitly asks bilingual output.
 - Add `language` to every chart spec and keep it aligned with `plan.language`.
 
-### 10. Plan Visuals Early and Aggressively
+### 11. Plan Visuals Early and Aggressively
 
 - Convert dense text into visuals whenever possible.
 - Target at least one visual slide in every two slides.
@@ -258,7 +280,7 @@ scripts/validate_json.py "$WORK_DIR/deck_plan.json"
 - Save generated images to a predictable folder (for example `assets/generated/`).
 - Ensure chart input passed to `make_chart.py` is a valid JSON file path (or use inline quick args without JSON).
 
-### 11. Build Deck from Template
+### 12. Build Deck from Template
 
 - Use `scripts/build_pptx.py` to stage template and initialize output `.pptx`.
 - Use `scripts/add_slide.py` to append one slide at a time from slide JSON specs.
@@ -289,7 +311,7 @@ scripts/add_slide.py \
   --language ja
 ```
 
-### 12. Validate Quality Gates Automatically
+### 13. Validate Quality Gates Automatically
 
 - Run `scripts/lint_pptx.py` after generation with language and style checks.
 - Example:
@@ -311,28 +333,28 @@ scripts/lint_pptx.py \
   - improving margins/alignment/layout balance.
 - Re-run lint until the deck passes quality gates from `references/quality-gates.md`.
 
-### 13. Perform Manual Visual Polish Pass
+### 14. Perform Manual Visual Polish Pass
 
 - Check spacing and alignment against template guides.
 - Check image quality and crop consistency.
 - Check chart simplification (remove unnecessary decoration).
 - Check icon/line/shadow style consistency.
 
-### 14. Enforce Language and Source Consistency
+### 15. Enforce Language and Source Consistency
 
 - Confirm `plan.language` matches prompt language.
 - Confirm all slide text and chart labels match `plan.language`.
 - For Japanese charts, confirm selected font can render all labels (no tofu boxes).
 - Keep source sections in speaker notes with the same `Sources:` style.
 
-### 15. Perform Final Consistency Pass
+### 16. Perform Final Consistency Pass
 
 - Check logical consistency across all slides.
 - Check terminology, unit, and timeline consistency.
 - Check that visual usage is sufficient and text density is controlled.
 - Check that every slide message supports the final decision/action.
 
-### 16. Save and Report
+### 17. Save and Report
 
 - Save final deck and return absolute path.
 - Return:
@@ -345,7 +367,7 @@ scripts/lint_pptx.py \
 
 ## Script Quick Reference
 
-- `scripts/build_pptx.py`: Initialize output `.pptx` and orchestrate sequential append.
+- `scripts/build_pptx.py`: Inspect layouts, rank per-slide layout candidates (`--suggest-layouts`), initialize output `.pptx`, and orchestrate sequential append.
 - `scripts/add_slide.py`: Append one title/content slide to an existing `.pptx`.
 - `scripts/lint_pptx.py`: Detect density, layout bias, typography inconsistency, margin/guide issues, and source/language format drift.
 - `scripts/make_chart.py`: Generate chart PNG files from simple JSON specs.

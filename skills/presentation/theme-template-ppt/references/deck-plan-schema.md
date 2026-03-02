@@ -22,12 +22,22 @@ scripts/build_pptx.py --list-layouts --layout-report ./layout-catalog.json
 ```
 
 Use this catalog to understand available title/content/table/visual-oriented layouts.
-Layout is auto-selected from existing masters, so explicit layout mapping is not required.
+Then rank per-slide candidates from your skeleton plan:
+
+```bash
+scripts/build_pptx.py --plan ./deck_plan.json --suggest-layouts --candidate-limit 3 --suggestions-report ./layout-suggestions.json
+```
+
+Use `layout-suggestions.json` to decide one layout per slide before final copy writing.
+Layout can still be auto-selected if `layout_name`/`layout` are omitted.
 When required profiles are missing, the build step clones and adds master layouts automatically.
 
 ## Authoring Order Rule (Per Slide)
 
-1. Verbalize one page intent label first:
+1. Organize one page claim/message first:
+   - `message` (one-line core assertion)
+   - `story_role` (optional narrative role)
+   - one intent label:
    - `title_cover`
    - `text_dense`
    - `text_brief`
@@ -36,16 +46,17 @@ When required profiles are missing, the build step clones and adds master layout
    - `table_comparison`
    - `table_focus`
    - `hybrid_data`
-2. Select layout automatically from existing slide-master layouts by matching:
-   - layout title semantics,
-   - composition (placeholder counts, columns, title position),
-   - and usage balance across the deck.
-3. Write/finalize page content after layout is selected, and map content into placeholders:
+2. Confirm layout candidates:
+   - run `--suggest-layouts`,
+   - compare candidates by placeholder profile and composition fit.
+3. Decide assigned layout:
+   - set `layout_name` (preferred) or `layout` (catalog index).
+4. Write/finalize page content after layout decision, and map content into placeholders:
    - title/subtitle placeholder,
    - visual/table placeholder,
-   - body placeholder.
+   - body placeholders (split bullets across suitable text slots, favoring larger content areas).
 
-Keep this order strict: `select layout -> fill placeholders`.
+Keep this order strict: `claim -> candidate review -> layout decision -> content rewrite -> fill placeholders`.
 
 ## Minimal shape
 
@@ -84,6 +95,7 @@ Keep this order strict: `select layout -> fill placeholders`.
       "message": "One-line core takeaway of this slide",
       "story_role": "context",
       "intent": "visual_split",
+      "layout_name": "06_figure_and_description",
       "subtitle": "Optional subtitle",
       "bullets": [
         "Key point 1",
@@ -143,8 +155,8 @@ Slide object fields:
 - `story_role` (recommended): Role in story flow (`context`, `problem`, `analysis`, `options`, `recommendation`, `next_action`).
 - `intent` (strongly recommended): Layout intent label (`title_cover`, `text_dense`, `text_brief`, `visual_split`, `visual_focus`, `table_comparison`, `table_focus`, `hybrid_data`). The renderer selects layout from this first, then fills placeholders.
 - `subtitle` (optional): Subtitle text.
-- `layout` (optional metadata): Ignored by renderer because layout is auto-detected.
-- `layout_name` (optional metadata): Ignored by renderer because layout is auto-detected.
+- `layout_name` (optional but recommended after candidate review): Exact layout name lock (case-insensitive). Example: `"06_figure_and_description"`.
+- `layout` (optional): Catalog index lock from `layout-catalog.json` / `--suggest-layouts` output. Used when `layout_name` is not set.
 - `bullets` (optional): List of body bullet strings.
 - `visual` (optional): Visual object.
 - `table` (optional): Table object for structured comparison.
@@ -175,5 +187,6 @@ Table object fields:
 - Keep caption style and icon style consistent on every visual slide.
 - Keep all slide text in `language` unless bilingual output is explicitly requested.
 - Keep every content slide structured with bullets, a table, or a visual.
+- Let scripts handle deterministic ranking/build/lint; let LLM rewrite semantic copy to fit selected layout blanks.
 - Prefer one message per slide.
 - Keep body bullets concise so `lint_pptx.py` can pass.

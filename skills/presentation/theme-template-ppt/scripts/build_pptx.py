@@ -364,7 +364,10 @@ def parse_args() -> argparse.Namespace:
         "--fallback-layout",
         type=int,
         default=1,
-        help="Deprecated (ignored). Layout is always auto-detected from slide masters.",
+        help=(
+            "Deprecated (ignored). Lock layout with plan.layout_name/plan.layout; "
+            "otherwise layout is auto-ranked from slide masters."
+        ),
     )
     parser.add_argument(
         "--strict-images",
@@ -388,8 +391,30 @@ def parse_args() -> argparse.Namespace:
         "--layout-report",
         help="Optional JSON output file for --list-layouts mode",
     )
+    parser.add_argument(
+        "--suggest-layouts",
+        action="store_true",
+        help=(
+            "Read --plan and print ranked layout candidates per slide before build. "
+            "Use this to lock layout_name/layout decisions before final content authoring."
+        ),
+    )
+    parser.add_argument(
+        "--candidate-limit",
+        type=int,
+        default=3,
+        help="Number of ranked candidates to return per slide in --suggest-layouts mode",
+    )
+    parser.add_argument(
+        "--suggestions-report",
+        help="Optional JSON output file for --suggest-layouts mode",
+    )
 
     args = parser.parse_args()
+    if args.list_layouts and args.suggest_layouts:
+        parser.error("--list-layouts and --suggest-layouts cannot be used together.")
+    if args.candidate_limit < 1:
+        parser.error("--candidate-limit must be >= 1.")
     if args.list_layouts:
         return args
     if not args.plan:
@@ -1033,6 +1058,7 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
     seen_layout_ids: set[int] = set()
     slide_width = int(prs.slide_width)
     slide_height = int(prs.slide_height)
+    catalog_index = 0
 
     for master_index, master in enumerate(prs.slide_masters):
         for layout_index, layout in enumerate(master.slide_layouts):
@@ -1058,6 +1084,7 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
 
             items.append(
                 {
+                    "catalog_index": catalog_index,
                     "layout": layout,
                     "name": name,
                     "name_lower": name_lower,
@@ -1070,6 +1097,7 @@ def list_master_layouts(prs: Presentation) -> list[dict[str, Any]]:
                     **composition,
                 }
             )
+            catalog_index += 1
 
     if not items:
         raise ValueError("Template does not contain slide-master layouts.")
@@ -1081,6 +1109,7 @@ def build_layout_catalog(layouts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for item in layouts:
         catalog.append(
             {
+                "catalog_index": item["catalog_index"],
                 "master_index": item["master_index"],
                 "layout_index": item["layout_index"],
                 "layout_name": item["name"],
@@ -1407,24 +1436,56 @@ def score_layout_candidate(
     return score
 
 
-def pick_layout(
+def _build_layout_selection_detail(
+    *,
+    intent: dict[str, Any],
+    candidate: dict[str, Any],
+    selection_mode: str,
+    base_score: int | None = None,
+    adjusted_score: int | None = None,
+    usage_count: int | None = None,
+) -> dict[str, Any]:
+    detail: dict[str, Any] = {
+        "selection_mode": selection_mode,
+        "intent_key": intent["key"],
+        "intent_source": intent.get("source", "inferred"),
+        "intent_description": intent["description"],
+        "selected_layout_name": candidate["name"],
+        "selected_layout_catalog_index": int(candidate.get("catalog_index", -1)),
+        "selected_layout_tags": candidate["tags"],
+        "selected_layout_column_count": int(candidate.get("column_count", 0)),
+        "selected_layout_placeholder_profile": {
+            "body": int(candidate.get("body_placeholder_count", 0)),
+            "visual": int(candidate.get("visual_placeholder_count", 0)),
+            "table": int(candidate.get("table_placeholder_count", 0)),
+        },
+        "selected_layout_content_blueprint": {
+            "body_slots": int(candidate.get("body_placeholder_count", 0)),
+            "visual_slots": int(candidate.get("visual_placeholder_count", 0)),
+            "table_slots": int(candidate.get("table_placeholder_count", 0)),
+        },
+    }
+    if base_score is not None:
+        detail["base_score"] = int(base_score)
+    if adjusted_score is not None:
+        detail["adjusted_score"] = int(adjusted_score)
+    if usage_count is not None:
+        detail["usage_count"] = int(usage_count)
+    return detail
+
+
+def _rank_layout_candidates(
     prs: Presentation,
     layouts: list[dict[str, Any]],
-    requested_index: Any,
-    requested_name: str,
-    fallback: int,
     *,
-    prefer_master_layouts: bool,
     is_title_slide: bool,
     has_bullets: bool,
     has_table: bool,
     has_visual: bool,
     has_subtitle: bool,
-    bullet_count: int = 0,
-    requested_intent: str | None = None,
-) -> tuple[Any, str, dict[str, Any]]:
-    del requested_index, requested_name, fallback, prefer_master_layouts
-
+    bullet_count: int,
+    requested_intent: str | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     if not layouts:
         raise ValueError("Template does not contain any slide-master layouts.")
 
@@ -1452,11 +1513,11 @@ def pick_layout(
         scored_base.append((base_score, candidate))
 
     best_base_score = max(item[0] for item in scored_base)
-    scored: list[tuple[int, int, int, int, int, int, int, int, int, dict[str, Any]]] = []
-    for score, candidate in scored_base:
+    ranked: list[dict[str, Any]] = []
+    for base_score, candidate in scored_base:
         usage = usage_by_layout.get(candidate["layout_key"], 0)
-        usage_penalty = _layout_usage_penalty(usage, best_base_score - score)
-        adjusted_score = score - usage_penalty
+        usage_penalty = _layout_usage_penalty(usage, best_base_score - base_score)
+        adjusted_score = base_score - usage_penalty
 
         # Penalize obvious placeholder mismatches to preserve master intent.
         if is_title_slide and not candidate["has_title"]:
@@ -1467,39 +1528,142 @@ def pick_layout(
             adjusted_score -= 12
 
         column_fit = -abs(int(candidate.get("column_count", 0)) - target_columns)
-        scored.append(
-            (
-                adjusted_score,
-                score,
-                -usage,
-                column_fit,
-                int(candidate["has_title"]),
-                int(candidate["has_subtitle"]),
-                int(candidate["has_body"]),
-                -int(candidate["master_index"]),
-                -int(candidate["layout_index"]),
-                candidate,
-            )
+        sort_key = (
+            adjusted_score,
+            base_score,
+            -usage,
+            column_fit,
+            int(candidate["has_title"]),
+            int(candidate["has_subtitle"]),
+            int(candidate["has_body"]),
+            -int(candidate["master_index"]),
+            -int(candidate["layout_index"]),
+        )
+        ranked.append(
+            {
+                "candidate": candidate,
+                "base_score": base_score,
+                "adjusted_score": adjusted_score,
+                "usage_count": usage,
+                "column_fit": column_fit,
+                "sort_key": sort_key,
+            }
         )
 
-    scored.sort(reverse=True)
-    selected = scored[0][9]
+    ranked.sort(key=lambda item: item["sort_key"], reverse=True)
+    return intent, ranked
+
+
+def _resolve_requested_layout(
+    layouts: list[dict[str, Any]],
+    *,
+    requested_index: Any,
+    requested_name: str,
+) -> tuple[dict[str, Any], str] | None:
+    requested_name_value = str(requested_name or "").strip()
+    if requested_name_value:
+        requested_name_lower = requested_name_value.lower()
+        for candidate in layouts:
+            if str(candidate.get("name_lower", "")) == requested_name_lower:
+                return candidate, "requested_layout_name"
+        print(
+            f"[WARN] Requested layout_name not found: {requested_name_value}. Falling back to ranked auto-selection.",
+            file=sys.stderr,
+        )
+
+    if requested_index in (None, "") or isinstance(requested_index, bool):
+        return None
+
+    try:
+        requested_idx = int(str(requested_index).strip())
+    except ValueError:
+        print(
+            f"[WARN] Requested layout index is not an integer: {requested_index!r}. Falling back to ranked auto-selection.",
+            file=sys.stderr,
+        )
+        return None
+
+    if requested_idx < 0:
+        print(
+            f"[WARN] Requested layout index must be >= 0: {requested_idx}. Falling back to ranked auto-selection.",
+            file=sys.stderr,
+        )
+        return None
+
+    for candidate in layouts:
+        if int(candidate.get("catalog_index", -1)) == requested_idx:
+            return candidate, "requested_layout_index"
+
+    print(
+        f"[WARN] Requested layout index not found: {requested_idx}. Falling back to ranked auto-selection.",
+        file=sys.stderr,
+    )
+    return None
+
+
+def pick_layout(
+    prs: Presentation,
+    layouts: list[dict[str, Any]],
+    requested_index: Any,
+    requested_name: str,
+    fallback: int,
+    *,
+    prefer_master_layouts: bool,
+    is_title_slide: bool,
+    has_bullets: bool,
+    has_table: bool,
+    has_visual: bool,
+    has_subtitle: bool,
+    bullet_count: int = 0,
+    requested_intent: str | None = None,
+) -> tuple[Any, str, dict[str, Any]]:
+    del fallback, prefer_master_layouts
+
+    intent, ranked = _rank_layout_candidates(
+        prs,
+        layouts,
+        is_title_slide=is_title_slide,
+        has_bullets=has_bullets,
+        has_table=has_table,
+        has_visual=has_visual,
+        has_subtitle=has_subtitle,
+        bullet_count=bullet_count,
+        requested_intent=requested_intent,
+    )
+
+    requested = _resolve_requested_layout(
+        layouts,
+        requested_index=requested_index,
+        requested_name=requested_name,
+    )
+    if requested is not None:
+        requested_candidate, selection_mode = requested
+        return (
+            requested_candidate["layout"],
+            selection_mode,
+            _build_layout_selection_detail(
+                intent=intent,
+                candidate=requested_candidate,
+                selection_mode=selection_mode,
+            ),
+        )
+
+    if not ranked:
+        raise ValueError("Unable to rank candidate layouts from template slide masters.")
+
+    selected = ranked[0]
+    selected_candidate = selected["candidate"]
     return (
-        selected["layout"],
+        selected_candidate["layout"],
         "master_auto",
-        {
-            "intent_key": intent["key"],
-            "intent_source": intent.get("source", "inferred"),
-            "intent_description": intent["description"],
-            "selected_layout_name": selected["name"],
-            "selected_layout_tags": selected["tags"],
-            "selected_layout_column_count": int(selected.get("column_count", 0)),
-            "selected_layout_placeholder_profile": {
-                "body": int(selected.get("body_placeholder_count", 0)),
-                "visual": int(selected.get("visual_placeholder_count", 0)),
-                "table": int(selected.get("table_placeholder_count", 0)),
-            },
-        },
+        _build_layout_selection_detail(
+            intent=intent,
+            candidate=selected_candidate,
+            selection_mode="master_auto",
+            base_score=int(selected["base_score"]),
+            adjusted_score=int(selected["adjusted_score"]),
+            usage_count=int(selected["usage_count"]),
+        ),
     )
 
 
@@ -1528,12 +1692,29 @@ def shape_area(shape: Any) -> int:
     return int(getattr(shape, "width", 0)) * int(getattr(shape, "height", 0))
 
 
-def find_body_shape(
+def _shape_reading_order(shape: Any) -> tuple[int, int]:
+    return (
+        int(getattr(shape, "top", 0)),
+        int(getattr(shape, "left", 0)),
+    )
+
+
+def _shape_quality_order(shape: Any) -> tuple[int, int, int]:
+    return (
+        -shape_area(shape),
+        int(getattr(shape, "top", 0)),
+        int(getattr(shape, "left", 0)),
+    )
+
+
+def _collect_text_placeholders(
     slide: Any, *, reserved_shape_ids: set[int] | None = None
-) -> Any | None:
+) -> tuple[list[Any], list[Any]]:
     reserved = reserved_shape_ids or set()
     title_shape = slide.shapes.title
-    placeholders: list[Any] = []
+    body_placeholders: list[Any] = []
+    other_text_placeholders: list[Any] = []
+
     for shape in slide.shapes:
         if shape == title_shape:
             continue
@@ -1543,21 +1724,106 @@ def find_body_shape(
             continue
         if is_non_content_placeholder(shape):
             continue
-        placeholders.append(shape)
+        if not getattr(shape, "has_text_frame", False):
+            continue
 
-    placeholders.sort(
-        key=lambda shape: (int(getattr(shape, "top", 0)), int(getattr(shape, "left", 0)))
-    )
-
-    for shape in placeholders:
         placeholder_type = get_placeholder_type(shape)
-        if placeholder_type in BODY_PLACEHOLDERS and getattr(shape, "has_text_frame", False):
-            return shape
+        if placeholder_type in TITLE_PLACEHOLDERS or placeholder_type in SUBTITLE_PLACEHOLDERS:
+            continue
 
-    for shape in placeholders:
-        if getattr(shape, "has_text_frame", False):
-            return shape
+        if placeholder_type in BODY_PLACEHOLDERS:
+            body_placeholders.append(shape)
+        else:
+            other_text_placeholders.append(shape)
 
+    body_placeholders.sort(key=_shape_quality_order)
+    other_text_placeholders.sort(key=_shape_quality_order)
+    return body_placeholders, other_text_placeholders
+
+
+def _select_bullet_targets(
+    slide: Any,
+    *,
+    bullet_count: int,
+    reserved_shape_ids: set[int] | None = None,
+) -> list[Any]:
+    body_placeholders, other_text_placeholders = _collect_text_placeholders(
+        slide, reserved_shape_ids=reserved_shape_ids
+    )
+    candidates = body_placeholders or other_text_placeholders
+    if not candidates:
+        return []
+
+    if bullet_count <= 1 or len(candidates) == 1:
+        return [candidates[0]]
+
+    max_height = max(int(getattr(shape, "height", 0)) for shape in candidates) or 1
+    max_area = max(shape_area(shape) for shape in candidates) or 1
+    primary_candidates = [
+        shape
+        for shape in candidates
+        if int(getattr(shape, "height", 0)) >= int(max_height * 0.55)
+        and shape_area(shape) >= int(max_area * 0.35)
+    ]
+    if not primary_candidates:
+        primary_candidates = candidates
+
+    target_count = min(len(primary_candidates), bullet_count)
+    selected = primary_candidates[:target_count]
+    selected.sort(key=_shape_reading_order)
+    return selected
+
+
+def _allocate_bullet_counts(bullet_count: int, targets: list[Any]) -> list[int]:
+    if not targets:
+        return []
+    if len(targets) == 1:
+        return [bullet_count]
+
+    counts = [1 for _ in targets]
+    remaining = bullet_count - len(targets)
+    areas = [max(1, shape_area(shape)) for shape in targets]
+
+    while remaining > 0:
+        best_index = max(
+            range(len(targets)),
+            key=lambda idx: areas[idx] / counts[idx],
+        )
+        counts[best_index] += 1
+        remaining -= 1
+    return counts
+
+
+def _write_bullets_to_shape(shape: Any, items: list[str]) -> None:
+    if not items:
+        return
+    if not getattr(shape, "has_text_frame", False):
+        return
+    text_frame = shape.text_frame
+    text_frame.clear()
+    text_frame.word_wrap = True
+    text_frame.paragraphs[0].text = items[0]
+    text_frame.paragraphs[0].level = 0
+    for item in items[1:]:
+        paragraph = text_frame.add_paragraph()
+        paragraph.text = item
+        paragraph.level = 0
+
+
+def find_body_shape(
+    slide: Any, *, reserved_shape_ids: set[int] | None = None
+) -> Any | None:
+    reserved = reserved_shape_ids or set()
+    body_placeholders, other_text_placeholders = _collect_text_placeholders(
+        slide, reserved_shape_ids=reserved_shape_ids
+    )
+    if body_placeholders:
+        return body_placeholders[0]
+    if other_text_placeholders:
+        return other_text_placeholders[0]
+
+    title_shape = slide.shapes.title
+    fallback_shapes: list[Any] = []
     for shape in slide.shapes:
         if shape == title_shape:
             continue
@@ -1569,7 +1835,10 @@ def find_body_shape(
             paragraph.text.strip() for paragraph in shape.text_frame.paragraphs
         )
         if not has_existing_text:
-            return shape
+            fallback_shapes.append(shape)
+    if fallback_shapes:
+        fallback_shapes.sort(key=_shape_quality_order)
+        return fallback_shapes[0]
     return None
 
 
@@ -1679,20 +1948,26 @@ def set_bullets(
 ) -> None:
     if not bullets:
         return
-    body_shape = find_body_shape(slide, reserved_shape_ids=reserved_shape_ids)
-    if body_shape is None:
+    targets = _select_bullet_targets(
+        slide,
+        bullet_count=len(bullets),
+        reserved_shape_ids=reserved_shape_ids,
+    )
+
+    if not targets:
         body_shape = slide.shapes.add_textbox(Inches(0.8), Inches(1.7), Inches(8.2), Inches(4.6))
-    elif not getattr(body_shape, "has_text_frame", False):
-        body_shape = slide.shapes.add_textbox(Inches(0.8), Inches(1.7), Inches(8.2), Inches(4.6))
-    text_frame = body_shape.text_frame
-    text_frame.clear()
-    text_frame.word_wrap = True
-    text_frame.paragraphs[0].text = bullets[0]
-    text_frame.paragraphs[0].level = 0
-    for item in bullets[1:]:
-        paragraph = text_frame.add_paragraph()
-        paragraph.text = item
-        paragraph.level = 0
+        _write_bullets_to_shape(body_shape, bullets)
+        return
+
+    target_count = min(len(targets), len(bullets))
+    selected_targets = targets[:target_count]
+    bullet_counts = _allocate_bullet_counts(len(bullets), selected_targets)
+
+    cursor = 0
+    for shape, count in zip(selected_targets, bullet_counts):
+        chunk = bullets[cursor: cursor + count]
+        _write_bullets_to_shape(shape, chunk)
+        cursor += count
 
 
 def add_table(
@@ -2020,6 +2295,156 @@ def normalize_slide_spec(raw: Any, index: int) -> dict[str, Any]:
     }
 
 
+def _candidate_content_blueprint(candidate: dict[str, Any], *, bullet_count: int) -> dict[str, Any]:
+    body_slots = int(candidate.get("body_placeholder_count", 0))
+    visual_slots = int(candidate.get("visual_placeholder_count", 0))
+    table_slots = int(candidate.get("table_placeholder_count", 0))
+
+    available_text_slots = body_slots if body_slots > 0 else 1
+    desired_chunks = max(1, bullet_count) if bullet_count > 0 else 1
+    recommended_body_chunks = min(available_text_slots, desired_chunks)
+
+    return {
+        "body_slots": body_slots,
+        "visual_slots": visual_slots,
+        "table_slots": table_slots,
+        "recommended_body_chunks": recommended_body_chunks,
+    }
+
+
+def suggest_layouts_for_plan(args: argparse.Namespace) -> dict[str, Any]:
+    template_path = resolve_template_path(args.template)
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template not found: {template_path}")
+
+    if not args.plan:
+        raise ValueError("--plan is required in --suggest-layouts mode.")
+    plan_path = Path(args.plan).expanduser().resolve()
+    if not plan_path.exists():
+        raise FileNotFoundError(f"Plan not found: {plan_path}")
+
+    plan = load_json(plan_path)
+    if not isinstance(plan, dict):
+        raise ValueError("Top-level plan JSON must be an object.")
+    slides_raw = plan.get("slides")
+    if not isinstance(slides_raw, list) or not slides_raw:
+        raise ValueError("Plan must contain a non-empty 'slides' list.")
+
+    prs = Presentation(str(template_path))
+    layouts = list_master_layouts(prs)
+    candidate_limit = max(1, int(args.candidate_limit))
+
+    queue: list[tuple[str, dict[str, Any], int]] = []
+    title_spec = plan.get("title_slide")
+    if isinstance(title_spec, dict):
+        queue.append(("title", title_spec, 0))
+    for content_index, raw_slide in enumerate(slides_raw, start=1):
+        if not isinstance(raw_slide, dict):
+            raise ValueError(f"Slide #{content_index} must be a JSON object.")
+        queue.append(("content", raw_slide, content_index))
+
+    suggestions: list[dict[str, Any]] = []
+    for sequence, (kind, raw_slide, content_index) in enumerate(queue, start=1):
+        if kind == "title":
+            title = str(raw_slide.get("title", "Title")).strip() or "Title"
+            subtitle = str(raw_slide.get("subtitle", "")).strip()
+            requested_intent = str(raw_slide.get("intent", "")).strip().lower() or None
+            requested_layout_name = str(raw_slide.get("layout_name", "")).strip()
+            requested_layout_index = raw_slide.get("layout")
+            message = str(raw_slide.get("message", "")).strip()
+            story_role = str(raw_slide.get("story_role", "")).strip()
+            bullet_count = 0
+            has_bullets = False
+            has_table = False
+            has_visual = False
+            has_subtitle = bool(subtitle)
+        else:
+            spec = normalize_slide_spec(raw_slide, content_index)
+            title = spec["title"]
+            subtitle = spec["subtitle"]
+            requested_intent = spec["intent"] or None
+            requested_layout_name = spec["layout_name"]
+            requested_layout_index = spec["layout"]
+            message = str(raw_slide.get("message", "")).strip()
+            story_role = str(raw_slide.get("story_role", "")).strip()
+            bullet_count = len(spec["bullets"])
+            has_bullets = bool(spec["bullets"])
+            has_table = bool(spec["table"])
+            has_visual = bool(spec["visual"].get("path"))
+            has_subtitle = bool(spec["subtitle"])
+
+        intent, ranked = _rank_layout_candidates(
+            prs,
+            layouts,
+            is_title_slide=(kind == "title"),
+            has_bullets=has_bullets,
+            has_table=has_table,
+            has_visual=has_visual,
+            has_subtitle=has_subtitle,
+            bullet_count=bullet_count,
+            requested_intent=requested_intent,
+        )
+
+        top_candidates = ranked[:candidate_limit]
+        candidate_rows: list[dict[str, Any]] = []
+        for rank_index, item in enumerate(top_candidates, start=1):
+            candidate = item["candidate"]
+            candidate_rows.append(
+                {
+                    "rank": rank_index,
+                    "layout_name": candidate["name"],
+                    "catalog_index": int(candidate["catalog_index"]),
+                    "master_index": int(candidate["master_index"]),
+                    "layout_index": int(candidate["layout_index"]),
+                    "adjusted_score": int(item["adjusted_score"]),
+                    "base_score": int(item["base_score"]),
+                    "usage_count": int(item["usage_count"]),
+                    "column_count": int(candidate.get("column_count", 0)),
+                    "title_position": candidate.get("title_position"),
+                    "tags": candidate.get("tags", []),
+                    "placeholder_profile": {
+                        "body": int(candidate.get("body_placeholder_count", 0)),
+                        "visual": int(candidate.get("visual_placeholder_count", 0)),
+                        "table": int(candidate.get("table_placeholder_count", 0)),
+                    },
+                    "content_blueprint": _candidate_content_blueprint(
+                        candidate, bullet_count=bullet_count
+                    ),
+                }
+            )
+
+        suggestions.append(
+            {
+                "sequence": sequence,
+                "kind": kind,
+                "content_index": content_index if kind == "content" else None,
+                "title": title,
+                "subtitle": subtitle,
+                "message": message,
+                "story_role": story_role,
+                "requested_layout_name": requested_layout_name,
+                "requested_layout_index": requested_layout_index,
+                "intent_key": intent["key"],
+                "intent_source": intent.get("source", "inferred"),
+                "intent_description": intent["description"],
+                "bullet_count": bullet_count,
+                "candidates": candidate_rows,
+            }
+        )
+
+    report = {
+        "template_path": str(template_path),
+        "plan_path": str(plan_path),
+        "candidate_limit": candidate_limit,
+        "suggestions": suggestions,
+    }
+    if args.suggestions_report:
+        report_path = Path(args.suggestions_report).expanduser().resolve()
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report
+
+
 def add_title_slide_if_requested(
     prs: Presentation,
     layouts: list[dict[str, Any]],
@@ -2240,6 +2665,10 @@ def main() -> int:
     try:
         if args.list_layouts:
             report = inspect_template_layouts(args)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
+        if args.suggest_layouts:
+            report = suggest_layouts_for_plan(args)
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
         result = build_deck(args)
