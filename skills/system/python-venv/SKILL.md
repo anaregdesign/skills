@@ -1,17 +1,16 @@
 ---
 name: python-venv
-description: Provide Python environment provisioning with uv under this skill's assets directory. Create and activate versioned environments at assets/vX.Y.Z, switch Python versions, and manage dependencies with uv add, uv lock, uv sync.
+description: Provide Python environment provisioning with uv under the workspace python directory. Create and activate versioned environments at <workspace-dir>/python/vX.Y.Z, switch Python versions, and manage dependencies with uv add, uv lock, uv sync.
 ---
 
 # Python Venv Environment Provider
 
 ## Hard Rules
 
-- Always place projects under `<skill-dir>/assets/vX.Y.Z`.
-- Resolve `<skill-dir>` by finding the full path of `SKILL.md` first, then use its parent directory.
+- Always place projects under `<workspace-dir>/python/vX.Y.Z`.
+- Resolve absolute `<workspace-dir>` from MCPHost app context (for example workspace metadata, current project root, or an environment variable such as `PYTHON_VENV_WORKSPACE_DIR`).
 - Never depend on caller `cwd` to choose project location.
-- Prefer explicit action calls (`use <version>`). For backward compatibility, a bare version (for example `python-venv.bash 3.12.8`) is treated as `use 3.12.8`.
-- Do not run only `source .../python-venv.<shell>`; always execute an action in the same command.
+- MCPHost can run CLI directly. Do not require helper script files.
 - This skill performs environment provisioning only. Do not execute user Python code in this skill.
 - Do not generate business/domain artifacts (for example deck plans, chart specs, PPTX files).
 - If the requested version does not exist yet, create it and activate it.
@@ -19,21 +18,30 @@ description: Provide Python environment provisioning with uv under this skill's 
 - If version is not specified, default to `3.12.8`.
 - Call `path` at most once at the end of provisioning. Do not poll it in a loop.
 
+## Prerequisites
+
+- Require `uv` in `PATH`. Check with `uv --version`.
+- If `uv` is missing on macOS, run `brew install uv`.
+- If `uv` is missing on Linux, run `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+- If `uv` is missing on Windows (PowerShell), run `winget install --id=astral-sh.uv -e`.
+- If `winget` is unavailable, run `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+- For current options, see `https://docs.astral.sh/uv/getting-started/installation/`.
+
 ## Handoff Contract
 
 - Scope of this skill: create/switch Python virtual environments and manage Python packages only.
 - After provisioning, return only:
   - version used,
-  - resolved environment directory from `python_venv path <version>`,
+  - resolved environment directory from `path <version>`,
   - packages added (if any).
 - Do not continue into domain workflow steps after this handoff.
 
-## Minimal Work Units
+## Action Semantics
 
-The shell scripts expose one command with these units:
+Use these action labels as procedural units. Implement them with direct shell commands.
 
 1. `ensure <version>`
-   - Create `<skill-dir>/assets/vX.Y.Z`.
+   - Create `<workspace-dir>/python/vX.Y.Z`.
    - Initialize uv project if missing.
    - Create `.venv` with the requested Python version.
 2. `activate <version>`
@@ -51,7 +59,7 @@ The shell scripts expose one command with these units:
    - Run `uv add <deps...>`, `uv lock`, `uv sync`.
    - If non-Python dependencies are included (for example `pptxgenjs`), skip them and show install guidance.
 6. `path <version>`
-   - Print resolved `<skill-dir>/assets/vX.Y.Z` path.
+   - Print resolved `<workspace-dir>/python/vX.Y.Z` path.
 
 ## Environment Provisioning Protocol
 
@@ -60,91 +68,37 @@ When asked for a Python environment, perform the following in order:
 1. Choose version:
    - User-specified version if provided.
    - Otherwise `3.12.8`.
-2. Run `python_venv use <version>` to create and activate the environment.
-3. If dependency updates are requested, run `python_venv add <version> <deps...>`.
-4. Return the environment path from `python_venv path <version>` (single call only).
+2. Resolve `env_dir="<workspace-dir>/python/v<version>"`.
+3. Run `ensure` then `activate`.
+4. If dependency updates are requested, run `add`.
+5. Return `path` once at the end.
 
-## Direct Script Command Contract
+## MCPHost CLI Contract
 
-When executing script files directly (without `source`), pass explicit action argv:
-
-```bash
-scripts/python-venv.bash use 3.12.8
-scripts/python-venv.bash 3.12.8
-scripts/python-venv.bash add 3.12.8 python-pptx Pillow matplotlib
-scripts/python-venv.bash path 3.12.8
-```
-
-Call order:
-
-1. `use`
-2. optional `add`
-3. `path` (once at end)
-
-## Interactive Shell Pattern
-
-Run the action in the same command where the script is loaded.
+1. Resolve absolute `<workspace-dir>` first.
+2. Execute one `bash -lc` command that includes:
+   - workspace path input passed from MCPHost (for example `PYTHON_VENV_WORKSPACE_DIR="<workspace-dir>"`),
+   - direct `uv` commands for `ensure` and (if needed) `activate` / `add` / `path`.
+3. Run in this order:
+   - `use`,
+   - optional `add`,
+   - `path` (once at end).
 
 ```bash
-bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv use 3.12.8'
+bash -lc '
+PYTHON_VENV_WORKSPACE_DIR="<workspace-dir>"
+version="3.12.8"
+env_dir="$PYTHON_VENV_WORKSPACE_DIR/python/v$version"
+mkdir -p "$env_dir"
+cd "$env_dir"
+test -f pyproject.toml || uv init --bare --python "$version" --name "python_v${version//./_}"
+uv venv --python "$version" --allow-existing
+source "$env_dir/.venv/bin/activate"
+'
 ```
 
-```zsh
-zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv add 3.12.8 requests'
-```
+## Direct Command Notes
 
-```fish
-fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv use 3.12.8'
-```
-
-```powershell
-pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv use 3.12.8"
-```
-
-## Shell-Specific Scripts
-
-- Bash: `scripts/python-venv.bash`
-- Zsh: `scripts/python-venv.zsh`
-- Fish: `scripts/python-venv.fish`
-- PowerShell: `scripts/python-venv.ps1`
-
-Load the script for the current shell, then call `python_venv`.
-
-## Usage Examples
-
-### Bash
-
-```bash
-bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv use 3.12.8'
-bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv add 3.12.8 pytest ruff'
-bash -lc 'source <skill-dir>/scripts/python-venv.bash && python_venv path 3.12.8'
-```
-
-### Zsh
-
-```zsh
-zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv use 3.11.11'
-zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv add 3.11.11 requests'
-zsh -lc 'source <skill-dir>/scripts/python-venv.zsh && python_venv path 3.11.11'
-```
-
-### Fish
-
-```fish
-fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv use 3.10.14'
-fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv add 3.10.14 numpy pandas'
-fish -c 'source <skill-dir>/scripts/python-venv.fish; python_venv path 3.10.14'
-```
-
-### PowerShell
-
-```powershell
-pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv use 3.13.1"
-pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv add 3.13.1 fastapi uvicorn"
-pwsh -NoProfile -Command ". <skill-dir>/scripts/python-venv.ps1; python_venv path 3.13.1"
-```
-
-## Deactivate Guidance
-
-- Use `python_venv deactivate` only when explicitly switching to another environment or clearing `VIRTUAL_ENV`.
-- In non-interactive shells, `deactivate` fallback cleanup is handled by this skill.
+- `add` should skip non-Python dependencies such as `pptxgenjs` / `npm:pptxgenjs` and print install guidance instead of failing.
+- `path` should print `<workspace-dir>/python/v<version>`.
+- `deactivate` should be used only when explicitly switching environments.
