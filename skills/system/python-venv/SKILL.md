@@ -1,6 +1,6 @@
 ---
 name: python-venv
-description: Provide Python environment provisioning with uv under the workspace python directory. Create and activate versioned environments at <workspace-dir>/python/vX.Y.Z, switch Python versions, and manage dependencies with uv add, uv lock, uv sync.
+description: Always use this skill before any explicit or implicit Python execution in a workspace (for example python/python3 commands, shebang scripts, test/build tools that invoke Python, uv run, uvx, pip, poetry, tox, or nox). Provision and activate uv environments under workspace-dir/python/vX.Y.Z, switch Python versions, and manage dependencies with uv add, uv lock, and uv sync.
 ---
 
 # Python Venv Environment Provider
@@ -11,6 +11,7 @@ description: Provide Python environment provisioning with uv under the workspace
 - Resolve absolute `<workspace-dir>` from MCPHost app context (for example workspace metadata, current project root, or an environment variable such as `PYTHON_VENV_WORKSPACE_DIR`).
 - Never depend on caller `cwd` to choose project location.
 - MCPHost can run CLI directly. Do not require helper script files.
+- Invoke this skill before any Python code execution in the workspace.
 - This skill performs environment provisioning only. Do not execute user Python code in this skill.
 - Do not generate business/domain artifacts (for example deck plans, chart specs, PPTX files).
 - If the requested version does not exist yet, create it and activate it.
