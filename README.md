@@ -34,6 +34,7 @@ Each `<skill-name>` directory must contain a skill that conforms to the
 
 | Tag |
 |-----|
+| development |
 | example |
 | finance |
 | japanese-business |
