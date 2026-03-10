@@ -178,6 +178,45 @@ This means:
 - domain-driven naming, not database-driven naming
 - domain behavior first, with use cases orchestrating around it
 
+## Constant Placement Rule
+
+Do not create a global constants dump by default.
+
+Use this order:
+
+1. keep a literal local when it is obvious and used once
+2. extract to the nearest owning module when the name improves readability
+3. extract to a feature-level `constants.ts` only when several modules in the same feature share it
+4. promote to a wider scope only when the constant is truly cross-feature and stable
+
+Good places for constants:
+
+- component-local label or CSS-class maps inside the component file
+- `client/usecase/<feature>/constants.ts` for workflow-specific limits, event names, or stable UI copy keys
+- `client/infrastructure/api/<feature>/constants.ts` for endpoint-local query parameter names or pagination defaults
+- `server/infrastructure/<area>/constants.ts` for adapter-local header names, timeouts, or filesystem conventions
+- `domain` only when the value is part of business language rather than a bare primitive
+
+Use `domain` for constants only when the value is really a domain concept, for example:
+
+- allowed lifecycle states expressed as a value object or policy input
+- currency precision rules owned by a `Money` type
+- business thresholds that belong to a named rule
+
+Do not hide domain meaning inside anonymous primitives such as:
+
+- `MAX_RETRY = 3` with no owning rule
+- `STATUS_ACTIVE = "active"` scattered across layers
+- magic numbers for business thresholds inside route or component files
+
+Prefer named objects or readonly collections when the grouping itself has meaning:
+
+- `const ORDER_STATUS_LABELS = { ... }`
+- `const SUPPORTED_EXPORT_FORMATS = [...] as const`
+- `const PAGINATION_DEFAULTS = { pageSize: 20 }`
+
+Avoid extracting every small literal. If a value is trivial, single-use, and clearer inline, keep it inline.
+
 ## Validation Ownership Rule
 
 Validate at the narrowest boundary that can correctly own the rule.
@@ -418,6 +457,54 @@ Additional rules:
 - avoid interface hierarchies that exist only to simulate mixins
 - keep object contracts behavior-focused instead of exposing wide grab-bag surfaces
 - if a contract must represent either-or states, prefer a discriminated union `type`
+
+## Unknown Type Rule
+
+Use `unknown` for data that has crossed a trust boundary but has not yet been proven safe.
+
+Good uses of `unknown`:
+
+- raw JSON from `request.json()` or `JSON.parse`
+- webhook or external SDK payloads
+- browser message events or storage payloads
+- caught errors before normalization
+- parser inputs at transport boundaries
+
+Prefer `unknown` over `any` when:
+
+- the value is real but the shape is not yet validated
+- the caller must narrow before use
+- you want the compiler to force proof before property access
+
+Best practice:
+
+1. receive untrusted data as `unknown`
+2. validate or narrow it immediately
+3. convert it into a DTO, value object, or domain model
+4. keep the validated shape flowing inward instead of the raw `unknown`
+
+Good narrowing tools:
+
+- schema validation
+- user-defined type guards
+- assertion functions
+- explicit parser functions that return validated output or throw
+
+Good examples:
+
+- `parseCreateOrderRequest(input: unknown): CreateOrderRequestDto`
+- `isWebhookEnvelope(input: unknown): input is WebhookEnvelope`
+- `normalizeError(error: unknown): InfrastructureError`
+
+Avoid these patterns:
+
+- returning `unknown` from ordinary internal use-case functions
+- storing `unknown` in reducer state or component props
+- passing `unknown` deep into `domain`
+- casting `unknown as SomeType` without real validation
+- using `unknown` to silence a type problem that should be modeled properly
+
+Treat `unknown` as a boundary quarantine type, not as a long-lived application type.
 
 ## Barrel Export Rule
 
@@ -670,6 +757,7 @@ Typical outputs:
 - `handleRetry`
 
 Reserve `store.ts` for cases where shared identity and lifecycle actually matter across multiple sibling views. Do not default to a store when a Hook plus reducer is enough.
+Use `constants.ts` in the same feature only when several use-case modules share the same stable literals.
 
 ### `app/lib/client/infrastructure/`
 
@@ -770,6 +858,8 @@ General examples:
 - `Money`: amount plus currency with safe arithmetic
 - `Slug`: route-safe identifier
 - `DateRange`: validated start and end pair
+
+Do not replace a real value object with a bag of exported primitive constants.
 
 ### `app/lib/domain/policies/`
 

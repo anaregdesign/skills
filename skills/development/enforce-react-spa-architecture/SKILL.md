@@ -75,8 +75,10 @@ Use this skill as the default architecture workflow for a React Router SPA that 
 - Keep feature internals private by default and avoid circular dependencies across extracted modules.
 - Use `class` only when identity, invariants, or lifecycle matter. Prefer composition over inheritance, and keep DTO or transport shapes as `type` plus function-based modules.
 - Use `interface` for stable object-shaped ports or contracts with multiple implementations. Use `type` for DTOs, unions, mapped shapes, and local view-model shapes.
+- Use `unknown` at trust boundaries when a value exists but its shape is not yet proven. Narrow or parse it immediately; do not let raw `unknown` drift into use cases, components, or domain models.
 - Keep one concept under one owner. Consolidate duplicate same-role modules only when they represent the same concept in the same boundary.
 - Build business behavior around domain models and domain language, but do not force UI state, DTOs, or infrastructure concerns into `domain`.
+- Keep constants in the narrowest owning module or feature. Extract repeated stable literals into `constants.ts` only when they have one clear owner; do not build a global constants dump.
 - Do not create a generic common bucket. Keep code in the narrowest owning layer, and duplicate small utilities until a stable abstraction is obvious.
 - Prefer direct replacement over compatibility aliases when renaming architecture terms.
 
@@ -93,6 +95,8 @@ Use this skill as the default architecture workflow for a React Router SPA that 
 - Name the user intent first.
 - Put invariants in `domain/entities` or `domain/value-objects`, and put cross-entity rules in `domain/policies` or `domain/services` when they do not naturally belong to one model.
 - Put behavior where the state lives: entity behavior on entities, value normalization on value objects, cross-entity rules on policies, and orchestration on services or use cases.
+- Keep literals local until they become stable, named concepts. Extract only when the name improves readability or the value is reused inside one clear boundary.
+- Treat untrusted data as `unknown` first, then narrow it at the boundary with a parser, schema, or type guard before promoting it to a DTO or domain shape.
 - When two modules appear to serve the same role, first ask whether they are actually the same concept in the same layer. Merge duplicates inside one boundary, but keep separate shapes when one is a DTO, one is a view model, or one is a domain model.
 - Put repository interfaces in `domain/repositories`.
 - Keep request or response shapes next to the route, API client, or use case that owns them. Promote them only after the boundary is stable and truly reused.

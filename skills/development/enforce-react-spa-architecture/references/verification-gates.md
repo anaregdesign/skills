@@ -38,6 +38,9 @@ Confirm all of the following:
 - no `interface` used for one-off DTOs or `I*`-prefixed port names without a strong reason
 - no parallel same-role modules left in one boundary without a clear ownership distinction
 - no forced merge that collapses DTOs, view models, persistence records, and domain models into one shape
+- no catch-all `constants` dump created without a clear ownership boundary
+- no business rule encoded only as scattered magic numbers or strings
+- no raw `unknown` value flowing past its trust boundary without narrowing or parsing
 
 ## Useful Search Patterns
 
@@ -85,6 +88,8 @@ Before `git push`, be able to state all of the following:
 - classes are used for identity and invariants, not as generic containers or static utility bags
 - `interface` is used for ports and stable object contracts, while `type` owns DTOs and unions
 - the app is domain-centered for business behavior without pushing UI, HTTP, or persistence details into `domain`
+- constants live with their owner instead of drifting into a global junk drawer
+- `unknown` is used as a boundary quarantine type rather than a long-lived internal type
 - reusable helpers still live in a specific owning layer unless the abstraction is clearly stable
 - the changed area has tests or a clear reason why tests were not added
 
