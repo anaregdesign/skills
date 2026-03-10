@@ -1,9 +1,5 @@
 # Layout And Dependency Rules
 
-## Clean Architecture First
-
-Treat this layout as a concrete expression of Clean Architecture. Do not reorganize files, merge layers, or introduce convenience directories if that would weaken ownership, dependency direction, or boundary clarity.
-
 ## Canonical Layout
 
 ```text
@@ -123,6 +119,64 @@ Use this decision order:
 4. If transport contracts become broadly shared across many boundaries, introduce a dedicated `app/lib/contracts/` directory later instead of polluting `domain`
 
 Shared transport shape is not the same thing as canonical domain language.
+
+## Concept Ownership And Consolidation Rule
+
+Do not keep parallel classes, variables, or functions that perform the same job in the same boundary without a clear reason.
+
+Prefer this rule:
+
+- one concept
+- one name
+- one owner
+
+Consolidate when all of these are true:
+
+- the modules represent the same concept
+- they live in the same boundary or layer
+- they differ only because of historical drift or accidental duplication
+
+Do not consolidate merely because names or fields look similar across boundaries.
+
+Intentional separation is usually correct when the shapes are:
+
+- route DTO vs domain model
+- API response vs view model
+- persistence record vs entity
+- browser adapter vs server gateway
+
+Good consolidation examples:
+
+- two validation helpers in the same use case feature that enforce the same business rule
+- two repository methods with the same meaning but legacy names
+- duplicated status-label mappers inside one client feature
+
+Do not merge just to remove duplication if the merge would blur ownership or collapse boundaries.
+
+## Domain-Centered Application Rule
+
+Build business behavior around domain language and domain models, but do not build the entire application as if everything were a domain object.
+
+Use the domain as the semantic center for:
+
+- invariants
+- value semantics
+- lifecycle transitions
+- business rule names
+
+Keep these outside `domain` even in a domain-centered app:
+
+- HTTP request and response DTOs
+- route parsing
+- view models and presentational props
+- browser runtime state
+- persistence adapters and SDK integrations
+
+This means:
+
+- domain-centered, not domain-only
+- domain-driven naming, not database-driven naming
+- domain behavior first, with use cases orchestrating around it
 
 ## Validation Ownership Rule
 
