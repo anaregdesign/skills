@@ -2,6 +2,10 @@
 
 Use this workflow when a `ts` or `tsx` file has accumulated too many responsibilities and must be split without breaking behavior.
 
+## Clean Architecture First
+
+Treat hotspot refactoring as architecture repair before style cleanup. When tradeoffs appear, prioritize restoring Clean Architecture boundaries over cosmetic simplification or broad rewrites.
+
 ## Goal
 
 Reduce one hotspot file into explicit modules with clearer boundaries, smaller review batches, and preserved behavior.

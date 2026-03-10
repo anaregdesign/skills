@@ -2,6 +2,10 @@
 
 Use these rules when defining HTTP APIs with React Router file route conventions and `flatRoutes()`.
 
+## Clean Architecture First
+
+Route naming and REST shape must serve Clean Architecture. Keep route modules thin, keep transport concerns at the edge, and do not let URL convenience become an excuse to bury business logic or Prisma access in route files.
+
 ## FlatRoute Mapping Rule
 
 React Router file route conventions map file names to URL pathnames, and `.` in a file name becomes `/` in the URL. Dynamic path segments use the `$` prefix.

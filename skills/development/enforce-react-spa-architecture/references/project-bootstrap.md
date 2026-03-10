@@ -2,6 +2,10 @@
 
 Use this guide when starting a new project from scratch.
 
+## Clean Architecture First
+
+Bootstrap choices exist to protect Clean Architecture, not to override it. If a starter template, package default, or shortcut conflicts with layer boundaries or dependency direction, keep the architecture intact and change the setup path instead.
+
 ## Baseline Assumptions
 
 Assume this stack unless the user explicitly says otherwise:

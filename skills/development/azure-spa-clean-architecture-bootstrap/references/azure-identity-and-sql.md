@@ -2,6 +2,10 @@
 
 Use this reference when the app needs Azure workload identity, Azure SQL, or social login backed by server-side persistence.
 
+## Clean Architecture First
+
+Identity and SQL decisions must reinforce Clean Architecture boundaries. Keep auth, session, repository, and infrastructure responsibilities explicit even when a shortcut looks attractive.
+
 ## Separate the Identity Types
 
 - Keep end-user social login separate from Azure workload identity.

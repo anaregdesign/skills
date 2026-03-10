@@ -1,5 +1,9 @@
 # Verification Gates
 
+## Clean Architecture First
+
+Passing tests is not enough when Clean Architecture regresses. A change that weakens boundaries, dependency direction, or ownership fails verification even if the runtime behavior still appears correct.
+
 ## Use This Before Push
 
 Run verification in this order:

@@ -1,5 +1,9 @@
 # View State And Handler Patterns
 
+## Clean Architecture First
+
+UI convenience never outranks Clean Architecture. If a component starts accumulating orchestration, async control flow, or cross-boundary knowledge, move that logic back into the owning use case instead of normalizing the leak.
+
 ## Goal
 
 Keep `app/components/` close to pure rendering. Move state transitions, async work, and handler composition into `app/lib/client/usecase/`.

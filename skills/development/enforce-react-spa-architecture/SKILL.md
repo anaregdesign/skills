@@ -1,17 +1,20 @@
 ---
 name: enforce-react-spa-architecture
-description: Enforce clean-architecture-based development and project bootstrap for Vite-powered React Router + Prisma v7 single-page applications. Use when initializing a new project, installing core dependencies, implementing features, refactoring structure, reviewing code, running quality gates, or preparing to push changes in a React Router SPA that should keep FlatRoute modules thin, components presentational, Prisma server-only, and dependencies flowing inward.
+description: Enforce clean-architecture-based development and project bootstrap for Vite-powered React Router + Prisma v7 single-page applications. Treat Clean Architecture as the highest-priority rule: use it when initializing a new project, installing core dependencies, implementing features, refactoring structure, reviewing code, running quality gates, or preparing to push changes in a React Router SPA that should keep FlatRoute modules thin, components presentational, Prisma server-only, and dependencies flowing inward.
 ---
 
 # Enforce React Spa Architecture
 
 ## Overview
 
-Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
+Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Treat Clean Architecture as the governing principle for every design and implementation decision. Use it from initial bootstrap through ongoing implementation, and change tooling or file layout choices instead of relaxing architecture boundaries. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
 
 ## Quick Start
 
-1. Classify the requested change:
+1. Start from the governing rule:
+   - Clean Architecture comes before convenience, speed, framework defaults, or personal preference.
+   - If a shortcut would blur layer ownership or dependency direction, reject the shortcut and keep the boundary.
+2. Classify the requested change:
    - route composition
    - presentational UI
    - client interaction flow
@@ -19,7 +22,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
    - persistence or external integration
    - domain rule
    - cross-boundary contract or utility
-2. Place code in the canonical layout:
+3. Place code in the canonical layout:
    - `app/routes/`
    - `app/components/`
    - `app/components/shared/`
@@ -41,7 +44,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
    - `app/lib/domain/policies/`
    - `app/lib/domain/services/`
    - `app/lib/domain/repositories/`
-3. Read the matching reference file before implementing:
+4. Read the matching reference file before implementing:
    - project bootstrap and dependency install: [`references/project-bootstrap.md`](references/project-bootstrap.md)
    - dependency and placement rules: [`references/layout-and-dependency-rules.md`](references/layout-and-dependency-rules.md)
    - FlatRoute REST API rules: [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
@@ -53,6 +56,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
 
 ## Non-Negotiable Rules
 
+- Treat Clean Architecture as the highest-priority rule. If convenience, speed, or an existing shortcut conflicts with it, preserve the boundary and change the shortcut instead.
 - Keep dependency direction inward:
   - `app/routes` and `app/components` depend on client-facing orchestration, never on Prisma
   - `app/lib/client/usecase` depends on `domain` and client adapters

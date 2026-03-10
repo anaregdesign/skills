@@ -1,20 +1,23 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: Bootstrap and enforce clean architecture for Vite-powered React Router + Prisma v7 web apps that must ship on Azure with GitHub-based delivery. Use when creating or evolving a React Router SPA-style app with server-backed auth or persistence, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
+description: Bootstrap and enforce clean architecture for Vite-powered React Router + Prisma v7 web apps that must ship on Azure with GitHub-based delivery. Treat Clean Architecture as the highest-priority rule, then use this skill when creating or evolving a React Router SPA-style app with server-backed auth or persistence, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
 ---
 
 # Azure Spa Clean Architecture Bootstrap
 
 ## Overview
 
-Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
+Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Treat Clean Architecture as the governing principle: every runtime, persistence, and delivery decision must conform to it rather than override it. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
 
 ## Quick Start
 
-1. Choose the runtime mode first:
+1. Start from the governing rule:
+   - Clean Architecture comes before convenience, tooling defaults, or delivery shortcuts.
+   - If a shortcut would blur boundaries, keep the boundary and choose a different implementation pattern.
+2. Choose the runtime mode first:
    - Keep pure SPA mode only when the app has no server-only secrets, no social login callback, no Prisma-backed mutations, and no protected server endpoints.
    - Use React Router framework runtime when the app needs auth callbacks, cookies, Prisma, Azure SQL, or server-owned secrets.
-2. Read the base architecture references from the sibling skill:
+3. Read the base architecture references from the sibling skill:
    - project bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
    - layout and dependency rules: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
    - FlatRoute REST API rules: [`../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md`](../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md)
@@ -23,13 +26,13 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
    - stateful flow compromises: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
    - hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
-3. Read the Azure and GitHub references in this skill:
+4. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
    - Azure identity and SQL: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
    - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
    - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
    - operational checklist: [`references/operational-checklist.md`](references/operational-checklist.md)
-4. Classify the change:
+5. Classify the change:
    - route or UI composition
    - auth or session boundary
    - persistence or migration
@@ -63,10 +66,12 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 
 ## Non-Negotiable Rules
 
+- Treat Clean Architecture as the highest-priority rule. If a runtime, persistence, or delivery convenience conflicts with it, preserve the architecture and change the implementation approach instead.
 - Keep all dependency and placement rules from `enforce-react-spa-architecture`.
 - Keep `app/routes` thin even when a server runtime is enabled.
 - Keep `app/components` presentational and keep async orchestration in `app/lib/client/usecase/`.
 - Keep Prisma and Azure SDK imports inside server infrastructure or deployment code.
+- Do not let platform concerns justify collapsing route, use case, domain, or infrastructure boundaries.
 - Treat "SPA" as a UX target, not as a requirement to remove the server runtime.
 - Prefer React Router framework runtime over bolting ad hoc APIs onto a static bundle when auth, persistence, or secret-backed integrations need a server.
 - Prefer Azure Container Apps for apps that need a server runtime. Use Static Web Apps only for truly static frontends.

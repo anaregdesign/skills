@@ -2,6 +2,10 @@
 
 Use this reference when the app needs Azure hosting, Azure-managed secrets, or production-grade deployment primitives.
 
+## Clean Architecture First
+
+Platform choices are subordinate to Clean Architecture. If a hosting shortcut, deployment habit, or managed-service default would weaken boundaries or ownership, keep the architecture intact and change the integration instead.
+
 ## Default Platform Choices
 
 - Use Azure Container Apps for React Router apps that need a server runtime.

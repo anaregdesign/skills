@@ -2,6 +2,10 @@
 
 Use these rules for flows such as chat, streaming generation, multi-step wizards, live playback, or long-lived session handling.
 
+## Clean Architecture First
+
+These compromises exist to preserve Clean Architecture under stateful pressure, not to suspend it. Allow local stores or controllers only when they stay contained within the owning feature and keep boundaries explicit.
+
 ## Principle
 
 Do not pretend every highly stateful flow can stay as a simple stateless Hook plus presentational view split.

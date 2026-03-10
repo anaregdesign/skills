@@ -2,6 +2,10 @@
 
 Use this reference before release, after deployment, or when handing work back to the user.
 
+## Clean Architecture First
+
+Operational readiness includes architecture integrity. Treat boundary drift as a release blocker even when infra deploys, smoke tests, or workflows appear healthy.
+
 ## Before Push
 
 - Run targeted tests for touched features.

@@ -1,5 +1,9 @@
 # Layout And Dependency Rules
 
+## Clean Architecture First
+
+Treat this layout as a concrete expression of Clean Architecture. Do not reorganize files, merge layers, or introduce convenience directories if that would weaken ownership, dependency direction, or boundary clarity.
+
 ## Canonical Layout
 
 ```text

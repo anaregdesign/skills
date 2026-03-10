@@ -1,4 +1,4 @@
 interface:
   display_name: "Azure SPA Clean Architecture"
-  short_description: "Bootstrap Azure-ready React Router SPA clean architecture"
-  default_prompt: "Use $azure-spa-clean-architecture-bootstrap to scaffold or evolve this React Router SPA with clean architecture, Azure deployment, and GitHub release automation."
+  short_description: "Bootstrap Azure-ready React Router SPA work with Clean Architecture first"
+  default_prompt: "Use $azure-spa-clean-architecture-bootstrap to scaffold or evolve this React Router SPA with Clean Architecture as the highest-priority rule across implementation, deployment, and operations."

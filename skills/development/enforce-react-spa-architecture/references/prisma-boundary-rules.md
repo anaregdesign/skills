@@ -2,6 +2,10 @@
 
 Use these rules when the project uses Prisma ORM.
 
+## Clean Architecture First
+
+Prisma is an infrastructure detail. Query convenience, generated types, or migration habits never justify pulling Prisma across use-case, route, component, or domain boundaries.
+
 ## Version Guidance
 
 - Use Prisma ORM v7.x for SQL-backed applications.
