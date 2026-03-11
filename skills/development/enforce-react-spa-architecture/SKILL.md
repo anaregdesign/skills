@@ -9,6 +9,7 @@ description: Enforce clean-architecture-based development and project bootstrap 
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
+When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
 If a companion hosting skill explicitly overrides runtime mode or config bootstrap, keep these architecture and boundary rules and let the companion override only the hosting-specific pieces.
 
 ## Quick Start
@@ -50,6 +51,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
    - FlatRoute REST API rules: [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
    - Prisma usage rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
    - state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
+   - chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
    - stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
    - hotspot refactor workflow: [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
    - verification before push: [`references/verification-gates.md`](references/verification-gates.md)
@@ -67,6 +69,9 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Prefer Fluent UI React v9 (`@fluentui/react-components`) for new UI work unless the repository already has a clear design-system standard or an approved migration plan says otherwise.
 - Keep UI visually simple: concise labels, low-noise layouts, restrained text density, and deliberate spacing over decorative complexity.
 - Use Tooltip or InfoLabel for supplemental, non-essential detail. Do not hide required labels, key instructions, validation messages, or critical status only inside a Tooltip.
+- When rendering charts, choose the simplest chart that matches the task: line charts for continuous trends over time, and bar or column charts for comparing discrete categories or ranked values.
+- Keep charts low-noise and accessible: avoid 3D or decorative chart junk, avoid color-only encoding, and keep critical values or explanations discoverable without hover.
+- For important charts, provide a nearby text summary and, when exact inspection matters, an accessible table or equivalent non-hover path to the underlying values.
 - Keep async state, mutation handlers, and derived view models in `app/lib/client/usecase/`.
 - Co-locate `state`, `reducer`, `selector`, and `handler` modules inside the owning feature directory under `app/lib/client/usecase/<feature>/`.
 - Do not create horizontal buckets such as `app/state/`, `app/reducers/`, `app/stores/`, `app/handlers/`, or `app/lib/client/usecase/state/`.
@@ -116,6 +121,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Keep feature components near the feature by default. Promote a component to `app/components/shared/` only after it proves to be truly feature-agnostic.
 - Prefer composing views from Fluent UI primitives before introducing custom low-level controls.
 - Keep on-screen copy terse. Put optional elaboration behind Tooltip, InfoLabel, Popover, or a similar secondary affordance only when the extra detail is not required for task completion.
+- For chart-heavy views, keep series transformation, grouping, filtering, and drill state in `app/lib/client/usecase/`, and keep chart components focused on rendering, theming, and accessibility wiring.
 - Let that module own:
   - async calls
   - reducer logic
@@ -219,6 +225,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
 - [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
 - [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
+- [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
 - [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
 - [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
 - [`references/verification-gates.md`](references/verification-gates.md)
