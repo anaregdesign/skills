@@ -1,4 +1,4 @@
 interface:
   display_name: "React SPA Architecture"
   short_description: "Bootstrap and enforce clean architecture in React Router + Prisma SPA work"
-  default_prompt: "Use $enforce-react-spa-architecture to bootstrap or implement this Vite-powered React Router/Prisma v7 SPA with strict layer boundaries, explicit file naming, and pre-push verification."
+  default_prompt: "Use $enforce-react-spa-architecture to bootstrap or implement this React Router and Prisma v7 SPA with strict layer boundaries, Fluent UI React v9 for new UI work, and pre-push verification."

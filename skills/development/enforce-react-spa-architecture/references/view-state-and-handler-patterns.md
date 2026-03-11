@@ -48,6 +48,16 @@ The component layer should own:
 - accessibility wiring
 - visual branching
 - tiny UI-only state that does not matter outside the component tree
+- composition of design-system primitives such as Fluent UI components
+
+## UI Presentation Guidance
+
+- Prefer Fluent UI React v9 primitives for new screens unless the repository already has a different approved design-system owner.
+- Keep surface design simple and task-focused. Favor clear hierarchy, compact copy, and predictable control placement over decorative variation.
+- Keep visible copy terse. Use concise labels and short helper text where needed.
+- Put only supplemental, non-essential detail in Tooltip or InfoLabel patterns.
+- Do not rely on Tooltip alone for required labels, validation, critical status, or instructions needed to complete a task.
+- When a control needs persistent explanation or error feedback, keep that explanation visible in the layout instead of hiding it behind hover or focus.
 
 ## Recommended Hook Shape
 

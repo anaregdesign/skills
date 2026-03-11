@@ -9,6 +9,7 @@ Assume this stack unless the user explicitly says otherwise:
 - TypeScript
 - React Router framework mode
 - SPA mode with `ssr: false`
+- Fluent UI React v9 for the UI layer unless the repository already has an established design-system standard
 - Prisma ORM v7
 - PostgreSQL as the default SQL database
 - Node.js 20.19+ or 22.x
@@ -82,7 +83,30 @@ npm install -D prisma@7 tsx @types/pg
 
 Use the adapter package that matches the actual database if the project is not using PostgreSQL.
 
-### 5. Initialize Prisma
+### 5. Install Fluent UI React v9
+
+For the default UI baseline:
+
+```bash
+npm install @fluentui/react-components @fluentui/react-icons
+```
+
+Wrap the app root with `FluentProvider` and the appropriate theme, typically `webLightTheme`, before building feature screens:
+
+```tsx
+import {
+  FluentProvider,
+  webLightTheme,
+} from "@fluentui/react-components";
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  return <FluentProvider theme={webLightTheme}>{children}</FluentProvider>;
+}
+```
+
+If the repository already has a clearly established design system, follow that system instead of mixing component libraries casually.
+
+### 6. Initialize Prisma
 
 For a normal PostgreSQL database:
 
@@ -98,7 +122,7 @@ npx prisma init --db --output ../app/lib/server/infrastructure/generated/prisma
 
 Keep the generated client under `app/lib/server/infrastructure/` so Prisma remains server-only by construction.
 
-### 6. Configure Prisma for v7
+### 7. Configure Prisma for v7
 
 Create or update `prisma.config.ts`:
 
@@ -133,7 +157,7 @@ datasource db {
 }
 ```
 
-### 7. Add a server-only Prisma bootstrap module
+### 8. Add a server-only Prisma bootstrap module
 
 Create `app/lib/server/infrastructure/prisma.server.ts` and keep Prisma construction there.
 
@@ -146,7 +170,7 @@ Preferred responsibilities:
 
 Do not import this module from `app/routes/`, `app/components/`, or `app/lib/client/`.
 
-### 8. Add baseline database scripts
+### 9. Add baseline database scripts
 
 Add or keep these scripts in `package.json`:
 
@@ -163,7 +187,7 @@ Add or keep these scripts in `package.json`:
 
 Prisma v7 no longer treats generation and seeding as automatic side effects. Run them explicitly.
 
-### 9. Apply the first migration
+### 10. Apply the first migration
 
 ```bash
 npx prisma migrate dev --name init
@@ -172,7 +196,7 @@ npx prisma generate
 
 Do not postpone the first migration until after multiple features exist. Establish the persistence boundary early.
 
-### 10. Create the first architecture-aligned directories
+### 11. Create the first architecture-aligned directories
 
 Do not create every possible directory up front.
 
@@ -219,6 +243,7 @@ Before starting feature work, confirm all of the following:
 - `npm run dev` starts successfully
 - SPA mode is enabled
 - FlatRoute routing is wired through `app/routes.ts`
+- Fluent UI React v9 is installed and the app root is wrapped with `FluentProvider`
 - Prisma client is generated under `app/lib/server/infrastructure/`
 - no Prisma import exists outside server infrastructure
 - the first migration runs successfully
