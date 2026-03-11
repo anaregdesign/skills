@@ -38,6 +38,14 @@ cd my-app
 
 Use the TypeScript option when prompted.
 
+Keep the standard mobile viewport tag in the document head:
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+```
+
+Add `viewport-fit=cover` only when the layout intentionally handles safe-area insets.
+
 ### 2. Switch the app to SPA mode by default
 
 Create or update `react-router.config.ts`:
@@ -242,6 +250,7 @@ Before starting feature work, confirm all of the following:
 
 - `npm run dev` starts successfully
 - SPA mode is enabled
+- the standard mobile viewport meta tag is present
 - FlatRoute routing is wired through `app/routes.ts`
 - Fluent UI React v9 is installed and the app root is wrapped with `FluentProvider`
 - Prisma client is generated under `app/lib/server/infrastructure/`

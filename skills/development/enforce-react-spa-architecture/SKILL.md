@@ -47,12 +47,19 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
    - `app/lib/domain/repositories/`
 3. Read the matching reference file before implementing:
    - project bootstrap and dependency install: [`references/project-bootstrap.md`](references/project-bootstrap.md)
-   - dependency and placement rules: [`references/layout-and-dependency-rules.md`](references/layout-and-dependency-rules.md)
+   - layout and module placement: [`references/layout-and-module-placement.md`](references/layout-and-module-placement.md)
+   - client layer responsibilities: [`references/client-layer-responsibilities.md`](references/client-layer-responsibilities.md)
+   - server and domain layer responsibilities: [`references/server-and-domain-layer-responsibilities.md`](references/server-and-domain-layer-responsibilities.md)
+   - boundary, contract, and validation rules: [`references/boundary-and-contract-rules.md`](references/boundary-and-contract-rules.md)
+   - domain modeling and type rules: [`references/domain-modeling-and-type-rules.md`](references/domain-modeling-and-type-rules.md)
+   - dependency injection, lifetime, and side-effect rules: [`references/dependency-injection-lifetime-and-side-effects.md`](references/dependency-injection-lifetime-and-side-effects.md)
    - FlatRoute REST API rules: [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
    - Prisma usage rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
    - state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
    - chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
    - commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
+   - responsive and mobile UI guidance: [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
+   - Playwright UI verification workflow: [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
    - stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
    - hotspot refactor workflow: [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
    - verification before push: [`references/verification-gates.md`](references/verification-gates.md)
@@ -75,6 +82,12 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - For important charts, provide a nearby text summary and, when exact inspection matters, an accessible table or equivalent non-hover path to the underlying values.
 - Keep shared Git history in Conventional Commits 1.0.0 format, using one logical, reviewable, revertable work unit per commit whenever practical.
 - Split behavior changes, refactors, docs, tests, and dependency updates into separate commits when they represent different reasons to change, but do not force tiny broken commits just to satisfy granularity.
+- Build responsive UI mobile-first with fluid layout primitives and content-driven breakpoints, not device-name-specific forks or fixed desktop widths.
+- Support narrow-screen reflow and avoid ordinary horizontal scrolling for app UI. Do not lock orientation unless a single orientation is genuinely essential.
+- Do not rely on hover-only or fine-pointer-only interaction for primary actions, labels, or critical explanation. Keep a touch and keyboard path for the same task.
+- Keep touch targets and spacing mobile-usable. Meet at least WCAG 2.2 minimum target size expectations or provide equivalent spacing, and use larger targets when practical.
+- For UI-affecting changes, verify the actual rendered result with Playwright before pushing instead of relying only on code inspection.
+- Prefer accessible locators and web-first assertions in Playwright, and check the touched flow at the relevant route and viewport sizes.
 - Keep async state, mutation handlers, and derived view models in `app/lib/client/usecase/`.
 - Co-locate `state`, `reducer`, `selector`, and `handler` modules inside the owning feature directory under `app/lib/client/usecase/<feature>/`.
 - Do not create horizontal buckets such as `app/state/`, `app/reducers/`, `app/stores/`, `app/handlers/`, or `app/lib/client/usecase/state/`.
@@ -124,6 +137,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Keep feature components near the feature by default. Promote a component to `app/components/shared/` only after it proves to be truly feature-agnostic.
 - Prefer composing views from Fluent UI primitives before introducing custom low-level controls.
 - Keep on-screen copy terse. Put optional elaboration behind Tooltip, InfoLabel, Popover, or a similar secondary affordance only when the extra detail is not required for task completion.
+- Keep purely presentational responsive adaptation in CSS, layout primitives, and presentational components. Move breakpoint-aware state into `usecase` only when it changes interaction flow or data loading behavior.
 - For chart-heavy views, keep series transformation, grouping, filtering, and drill state in `app/lib/client/usecase/`, and keep chart components focused on rendering, theming, and accessibility wiring.
 - Let that module own:
   - async calls
@@ -197,6 +211,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Run targeted tests for the touched area.
 - Run typecheck and lint or the project quality gate.
 - Audit for boundary drift and forbidden imports.
+- For UI-affecting changes, run the touched route in Playwright and confirm the rendered result, interaction states, and responsive layout.
 - Fix architecture violations before pushing even if tests pass.
 
 ### 13. Refactor overloaded files in phases
@@ -231,12 +246,19 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 ## References
 
 - [`references/project-bootstrap.md`](references/project-bootstrap.md)
-- [`references/layout-and-dependency-rules.md`](references/layout-and-dependency-rules.md)
+- [`references/layout-and-module-placement.md`](references/layout-and-module-placement.md)
+- [`references/client-layer-responsibilities.md`](references/client-layer-responsibilities.md)
+- [`references/server-and-domain-layer-responsibilities.md`](references/server-and-domain-layer-responsibilities.md)
+- [`references/boundary-and-contract-rules.md`](references/boundary-and-contract-rules.md)
+- [`references/domain-modeling-and-type-rules.md`](references/domain-modeling-and-type-rules.md)
+- [`references/dependency-injection-lifetime-and-side-effects.md`](references/dependency-injection-lifetime-and-side-effects.md)
 - [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
 - [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
 - [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
 - [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
 - [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
+- [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
+- [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
 - [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
 - [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
 - [`references/verification-gates.md`](references/verification-gates.md)
