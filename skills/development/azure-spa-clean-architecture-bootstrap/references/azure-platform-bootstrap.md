@@ -2,14 +2,11 @@
 
 Use this reference when the app needs Azure hosting, Azure-managed secrets, or production-grade deployment primitives.
 
-## Clean Architecture First
-
-Platform choices are subordinate to Clean Architecture. If a hosting shortcut, deployment habit, or managed-service default would weaken boundaries or ownership, keep the architecture intact and change the integration instead.
-
 ## Default Platform Choices
 
 - Use Azure Container Apps for React Router apps that need a server runtime.
 - Use Azure SQL Database serverless for relational persistence unless workload characteristics force another SKU.
+- Use `Microsoft Entra ID` for Microsoft authentication, and keep app registration setup scriptable with `az` or `az rest`.
 - Use Key Vault for runtime secrets and secret rotation.
 - Use Application Insights and Log Analytics for telemetry and diagnostics.
 - Use Managed Identity for app runtime access to Azure resources.
@@ -19,6 +16,7 @@ Platform choices are subordinate to Clean Architecture. If a hosting shortcut, d
 
 - Keep a static-only SPA only when the app has no server-owned secrets, no OAuth callback handling, and no server-side persistence boundary.
 - Switch to React Router framework runtime when social login, server sessions, Prisma, Azure SQL, or server-owned API calls appear.
+- Align the `Microsoft Entra ID` app registration to the runtime contract: use `web` redirects for server callbacks and `spa` redirects only for true browser-only PKCE flows.
 - Preserve SPA-style navigation and presentational component boundaries even when the deployment target is a containerized web app.
 
 ## Add the Expected Repository Files
@@ -47,6 +45,7 @@ Platform choices are subordinate to Clean Architecture. If a hosting shortcut, d
 - Do not hide migration execution inside container startup unless the blast radius is understood and rollback is trivial.
 - Do not skip a health endpoint. Container Apps deploy and smoke-test flow should have a stable probe target.
 - Do not leave callback URLs undocumented. Each environment needs explicit OAuth redirect values.
+- Do not rely on portal-only `Microsoft Entra ID` changes. Keep the `az` or `az rest` command flow with the project notes or bootstrap scripts.
 
 ## Keep IaC and Runtime Boundaries Explicit
 
@@ -60,4 +59,5 @@ Platform choices are subordinate to Clean Architecture. If a hosting shortcut, d
 - Validate the infra plan before deploy.
 - Build the container image locally or in CI.
 - Verify the health route responds after deploy.
+- Verify the app registration audience and redirect URIs match local, staging, and production URLs.
 - Verify the app can reach its backing services with production auth mode.

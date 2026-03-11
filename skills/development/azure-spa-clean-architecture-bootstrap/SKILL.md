@@ -1,22 +1,31 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: Bootstrap and enforce clean architecture for Vite-powered React Router + Prisma v7 web apps that must ship on Azure with GitHub-based delivery. Treat Clean Architecture as the highest-priority rule, then use this skill when creating or evolving a React Router SPA-style app with server-backed auth or persistence, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
+description: Bootstrap and enforce clean architecture for Vite-powered React Router + Prisma v7 web apps that must ship on Azure with GitHub-based delivery. This skill extends enforce-react-spa-architecture and should be installed with it. Use when creating or evolving a React Router SPA-style app with server-backed auth or persistence, integrating Microsoft Entra ID authentication or Azure CLI app registration, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
 ---
 
 # Azure Spa Clean Architecture Bootstrap
 
 ## Overview
 
-Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Treat Clean Architecture as the governing principle: every runtime, persistence, and delivery decision must conform to it rather than override it. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
+Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
+Treat requests for "Microsoft auth" as `Microsoft Entra ID` unless the user explicitly needs a different identity product.
+
+## Companion Skill Requirement
+
+- Install `enforce-react-spa-architecture` together with this skill. Do not use this skill as a standalone replacement for the base architecture skill.
+- If the companion skill is missing, install it before continuing from [https://github.com/anaregdesign/skills/tree/main/skills/development/enforce-react-spa-architecture](https://github.com/anaregdesign/skills/tree/main/skills/development/enforce-react-spa-architecture).
+- Prefer `$skill-installer` for the install step when another Codex instance needs to fetch the published skill from GitHub.
+- Continue only after the sibling references under `../enforce-react-spa-architecture/references/` are locally available.
 
 ## Quick Start
 
-1. Start from the governing rule:
-   - Clean Architecture comes before convenience, tooling defaults, or delivery shortcuts.
-   - If a shortcut would blur boundaries, keep the boundary and choose a different implementation pattern.
-2. Choose the runtime mode first:
+1. Choose the runtime mode first:
    - Keep pure SPA mode only when the app has no server-only secrets, no social login callback, no Prisma-backed mutations, and no protected server endpoints.
    - Use React Router framework runtime when the app needs auth callbacks, cookies, Prisma, Azure SQL, or server-owned secrets.
+2. Confirm the companion skill is installed:
+   - required skill: `enforce-react-spa-architecture`
+   - published URL: `https://github.com/anaregdesign/skills/tree/main/skills/development/enforce-react-spa-architecture`
+   - if missing, install it with `$skill-installer` before reading the sibling references
 3. Read the base architecture references from the sibling skill:
    - project bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
    - layout and dependency rules: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
@@ -28,12 +37,14 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 4. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
-   - Azure identity and SQL: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+   - Azure identity and SQL, including `Microsoft Entra ID` and Azure CLI app registration flows: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+   - GitHub repository operations: [`references/github-repository-operations.md`](references/github-repository-operations.md)
    - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
    - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
    - operational checklist: [`references/operational-checklist.md`](references/operational-checklist.md)
 5. Classify the change:
    - route or UI composition
+   - Microsoft Entra ID auth or app registration
    - auth or session boundary
    - persistence or migration
    - Azure infrastructure
@@ -66,19 +77,21 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 
 ## Non-Negotiable Rules
 
-- Treat Clean Architecture as the highest-priority rule. If a runtime, persistence, or delivery convenience conflicts with it, preserve the architecture and change the implementation approach instead.
+- Install and keep `enforce-react-spa-architecture` available together with this skill.
 - Keep all dependency and placement rules from `enforce-react-spa-architecture`.
 - Keep `app/routes` thin even when a server runtime is enabled.
 - Keep `app/components` presentational and keep async orchestration in `app/lib/client/usecase/`.
 - Keep Prisma and Azure SDK imports inside server infrastructure or deployment code.
-- Do not let platform concerns justify collapsing route, use case, domain, or infrastructure boundaries.
 - Treat "SPA" as a UX target, not as a requirement to remove the server runtime.
 - Prefer React Router framework runtime over bolting ad hoc APIs onto a static bundle when auth, persistence, or secret-backed integrations need a server.
 - Prefer Azure Container Apps for apps that need a server runtime. Use Static Web Apps only for truly static frontends.
 - Prefer Azure SQL Database serverless for relational persistence. Treat SQLite as local-dev or prototype storage only.
+- Prefer `Microsoft Entra ID` over portal-only or ad hoc "Microsoft auth" descriptions, and keep the chosen `signInAudience` explicit.
 - Use `DefaultAzureCredential` or Managed Identity only where runtime SDK support is real. Do not assume Prisma CLI or schema migration flows inherit that auth automatically.
 - Separate runtime identity from migration or admin identity.
+- Prefer scripted `az` or `az rest` app registration changes over portal-only click paths so redirect URIs, audience, and secret mode stay reproducible.
 - Use GitHub Actions OIDC to Azure. Do not store Azure client secrets in GitHub.
+- Keep repository governance explicit: protected default branch, required checks, and production Environment scoping.
 - Deploy immutable release-tag images, not mutable `latest`.
 - Keep production values in GitHub Environments and Azure-managed secret stores rather than in repo files.
 - Add explicit health endpoints and post-deploy smoke tests.
@@ -94,6 +107,7 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 
 ### 1. Bootstrap the app and architecture
 
+- Confirm `enforce-react-spa-architecture` is installed from the published GitHub path before relying on sibling references.
 - Follow the sibling architecture references before adding cloud features.
 - Start with `create-react-router`, Vite, FlatRoute conventions, and Prisma v7.
 - Keep components presentational and move async orchestration into `app/lib/client/usecase/`.
@@ -110,6 +124,10 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 ### 3. Add auth and session boundaries at the edge
 
 - Handle social login callbacks, cookies, and session state at the route or server edge.
+- When the app needs Microsoft auth, decide early whether the runtime contract is `web` or `spa`.
+- Prefer `web` platform redirect URIs and server-owned cookie sessions when React Router framework runtime already exists for Prisma, secrets, or protected server endpoints.
+- Use `spa` platform redirect URIs and browser PKCE only when the frontend is truly static and has no server-owned secret boundary.
+- Create or update the `Microsoft Entra ID` app registration from Azure CLI or `az rest`, and keep redirect URIs plus audience in versioned notes.
 - Keep authorization decisions in use cases or domain policies.
 - Keep provider profile DTOs out of `domain` until a stable internal model is necessary.
 - Document environment-specific callback URLs in README and app registration notes.
@@ -158,6 +176,7 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 - Need Azure deployment scripts: `scripts/azure/`
 - Need GitHub release and deploy workflows: `.github/workflows/`
 - Need health probes: `app/routes/health.ts`
+- Need `Microsoft Entra ID` auth, callback, or app registration guidance: `references/azure-identity-and-sql.md`
 - Need server config parsing: `app/lib/server/infrastructure/`
 - Need Azure SQL or SDK adapters: `app/lib/server/infrastructure/repositories/` and `app/lib/server/infrastructure/gateways/`
 - Need production env documentation: `.env.example` and `README.md`
@@ -173,7 +192,8 @@ Use this skill to keep the clean-architecture discipline of a React Router app w
 - base hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
 - base verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
-- Azure identity and SQL: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+- Azure identity and SQL, including `Microsoft Entra ID` auth and Azure CLI app registration: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+- GitHub repository operations: [`references/github-repository-operations.md`](references/github-repository-operations.md)
 - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
 - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
 - operational checklist: [`references/operational-checklist.md`](references/operational-checklist.md)

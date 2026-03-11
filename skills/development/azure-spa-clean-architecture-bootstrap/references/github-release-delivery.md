@@ -2,10 +2,6 @@
 
 Use this reference when the app needs GitHub-based CI/CD, container publishing, or release-driven deployment to Azure.
 
-## Clean Architecture First
-
-Delivery automation exists to ship the architecture safely, not to bypass it. Do not let workflow convenience normalize hidden migrations, secret sprawl, or boundary-breaking packaging decisions.
-
 ## Default GitHub Delivery Model
 
 - Run quality gates on push and pull request.

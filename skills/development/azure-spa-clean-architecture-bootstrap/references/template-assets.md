@@ -2,10 +2,6 @@
 
 Use this reference when copying files from `assets/templates/` into a target repository.
 
-## Clean Architecture First
-
-Templates are starting points, not architectural authority. Customize copied assets so they preserve the target repo's Clean Architecture boundaries instead of blindly inheriting convenience structure from scaffolding.
-
 ## Goals
 
 - Start from working generic files instead of rewriting common Azure and GitHub scaffolding.
