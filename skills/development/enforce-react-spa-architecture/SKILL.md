@@ -8,6 +8,7 @@ description: Enforce clean-architecture-based development and project bootstrap 
 ## Overview
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
+This skill owns code structure, dependency direction, UI guardrails, commit hygiene, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
 When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
 If a companion hosting skill explicitly overrides runtime mode or config bootstrap, keep these architecture and boundary rules and let the companion override only the hosting-specific pieces.
@@ -97,6 +98,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Instantiate repositories and gateways in a composition root or dependency factory, not inside domain models or use cases.
 - Prefer React Router's official Vite-powered bootstrap for new projects. Use plain `create-vite` only when you intentionally choose a lower-level React Router mode or must retrofit an existing starter.
 - Fix Prisma usage to Prisma ORM v7.x. Treat non-v7 setup as migration work, not as an equal baseline.
+- Do not put cloud-provider provisioning, app registration, secret-store policy, IaC topology, or release-infrastructure rules in this skill. Keep those in a companion hosting skill while preserving these code-level boundaries.
 - Keep authorization, serialization, migration steps, background side effects, and barrel exports intentional rather than ad hoc.
 - Treat thread safety mainly as async safety and request safety: avoid module-level mutable state, keep request context out of singletons, and rebuild transaction-scoped dependencies per request.
 - Keep feature internals private by default and avoid circular dependencies across extracted modules.
@@ -117,6 +119,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Prefer `create-react-router` for this skill's architecture because it already aligns with Vite, route modules, and SPA mode.
 - Add Prisma v7, the correct driver adapter, `@react-router/fs-routes`, and SPA configuration before layering domain or use-case code.
 - Add Fluent UI React v9 early for new UI work so components, theming, and accessibility patterns stay consistent from the first screen.
+- When hosting, identity, or deployment requirements appear, keep this skill on code-level architecture and hand the platform-specific decisions to the companion hosting skill.
 
 ### 1. Model the change around a use case
 

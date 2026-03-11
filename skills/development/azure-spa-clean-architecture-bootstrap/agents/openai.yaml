@@ -1,4 +1,4 @@
 interface:
   display_name: "Azure SPA Clean Architecture"
-  short_description: "Bootstrap Azure-ready React Router architecture and optional auth"
-  default_prompt: "Use $azure-spa-clean-architecture-bootstrap to scaffold or evolve this React Router app with clean architecture, Azure deployment, and Microsoft Entra ID only when end-user authentication is required."
+  short_description: "Add Azure hosting, identity, and GitHub delivery to the base React SPA architecture"
+  default_prompt: "Use $azure-spa-clean-architecture-bootstrap together with $enforce-react-spa-architecture to add Azure hosting, secretless config, GitHub delivery, and Microsoft Entra ID only when end-user authentication is required."

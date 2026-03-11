@@ -1,13 +1,14 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: Bootstrap and enforce clean architecture for Vite-powered React Router + Prisma v7 web apps that must ship on Azure with GitHub-based delivery. This skill extends enforce-react-spa-architecture and should be installed with it. Use when creating or evolving a React Router SPA-style app with server-backed auth or persistence, adding Microsoft Entra ID authentication or Azure CLI app registration when authentication is required, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
+description: Add Azure hosting, identity, secretless config, and GitHub delivery guidance on top of enforce-react-spa-architecture for Vite-powered React Router + Prisma v7 web apps. This skill extends enforce-react-spa-architecture and should be installed with it. Use when creating or evolving a React Router SPA-style app that must ship on Azure, adding Microsoft Entra ID authentication or Azure CLI app registration when authentication is required, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
 ---
 
 # Azure Spa Clean Architecture Bootstrap
 
 ## Overview
 
-Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
+Use this skill to layer Azure hosting, identity, and GitHub delivery decisions onto the base React Router clean architecture owned by `enforce-react-spa-architecture`. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
+This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, and release workflow guidance. Keep code structure, UI guardrails, commit hygiene, and general verification rules in the companion skill, and repeat them here only when they are critical to protect Azure-specific boundaries.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
 When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.
@@ -30,12 +31,12 @@ When the app requires user authentication, prefer a real local sign-in path with
    - if missing, install it with `$skill-installer` before reading the sibling references
 3. Read the base architecture references from the sibling skill:
    - project bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
-   - layout and dependency rules: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
+   - layout and module placement: [`../enforce-react-spa-architecture/references/layout-and-module-placement.md`](../enforce-react-spa-architecture/references/layout-and-module-placement.md)
+   - client layer responsibilities: [`../enforce-react-spa-architecture/references/client-layer-responsibilities.md`](../enforce-react-spa-architecture/references/client-layer-responsibilities.md)
+   - server and domain layer responsibilities: [`../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md`](../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md)
+   - boundary and contract rules: [`../enforce-react-spa-architecture/references/boundary-and-contract-rules.md`](../enforce-react-spa-architecture/references/boundary-and-contract-rules.md)
    - FlatRoute REST API rules: [`../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md`](../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md)
    - Prisma boundary rules: [`../enforce-react-spa-architecture/references/prisma-boundary-rules.md`](../enforce-react-spa-architecture/references/prisma-boundary-rules.md)
-   - view-state and handler patterns: [`../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md`](../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md)
-   - stateful flow compromises: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
-   - hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 4. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
@@ -84,9 +85,8 @@ When the app requires user authentication, prefer a real local sign-in path with
 ## Non-Negotiable Rules
 
 - Install and keep `enforce-react-spa-architecture` available together with this skill.
-- Keep all dependency and placement rules from `enforce-react-spa-architecture`.
-- Keep `app/routes` thin even when a server runtime is enabled.
-- Keep `app/components` presentational and keep async orchestration in `app/lib/client/usecase/`.
+- Keep all dependency, placement, UI, commit, and verification rules from `enforce-react-spa-architecture`.
+- Do not redefine the companion skill's general coding guardrails here. Use this skill for Azure, identity, infrastructure, and delivery deltas, and repeat code-level rules only when they protect those deltas.
 - Keep Prisma and Azure SDK imports inside server infrastructure or deployment code.
 - Treat "SPA" as a UX target, not as a requirement to remove the server runtime.
 - Prefer React Router framework runtime over bolting ad hoc APIs onto a static bundle when auth, persistence, or secret-backed integrations need a server.
@@ -122,9 +122,7 @@ When the app requires user authentication, prefer a real local sign-in path with
 
 - Confirm `enforce-react-spa-architecture` is installed from the published GitHub path before relying on sibling references.
 - Follow the sibling architecture references before adding cloud features.
-- Start with `create-react-router`, Vite, FlatRoute conventions, and Prisma v7.
-- Keep components presentational and move async orchestration into `app/lib/client/usecase/`.
-- Keep domain, use case, repository port, and infrastructure ownership explicit from the first feature.
+- Keep this skill focused on platform deltas after the companion skill has established code structure, UI rules, and verification gates.
 
 ### 2. Add cloud-facing repository structure intentionally
 
@@ -152,8 +150,7 @@ When the app requires user authentication, prefer a real local sign-in path with
 
 ### 4. Add persistence and identity intentionally
 
-- Put repository ports in `app/lib/domain/repositories/`.
-- Implement Azure SQL or SQL Server access in `app/lib/server/infrastructure/repositories/`.
+- Keep repository ports in the companion skill's domain layer, and place Azure SQL or SQL Server adapters in `app/lib/server/infrastructure/repositories/`.
 - Use local `DefaultAzureCredential` in development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication when the driver path supports it.
 - Keep migrations explicit and separate from app startup.
 - Keep `db_datareader` and `db_datawriter` on runtime identities. Reserve elevated roles for migration or admin identities.
