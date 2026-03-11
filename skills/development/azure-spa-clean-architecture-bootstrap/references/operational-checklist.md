@@ -16,6 +16,7 @@ Use this reference before release, after deployment, or when handing work back t
 - Confirm screenshots and callback URLs are current.
 - Confirm GitHub Environment variables and Azure-side identities exist.
 - Confirm App Configuration keys and Key Vault secrets match the runtime config contract.
+- When the app requires user authentication, confirm the documented local sign-in path still works with the intended dev or test identities.
 - Confirm the release workflow deploys the immutable release tag, not `latest`.
 
 ## After Release

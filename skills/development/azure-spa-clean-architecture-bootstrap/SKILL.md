@@ -10,6 +10,7 @@ description: Bootstrap and enforce clean architecture for Vite-powered React Rou
 Use this skill to keep the clean-architecture discipline of a React Router app while standardizing Azure hosting, identity, and GitHub operations. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
+When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.
 
 ## Companion Skill Requirement
 
@@ -38,7 +39,11 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 4. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
-   - Azure identity and SQL, including conditional `Microsoft Entra ID` and Azure CLI app registration flows for apps that require auth: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+   - Azure identity overview index: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+   - user auth, runtime contract, and local sign-in path: [`references/entra-user-auth-and-runtime-contracts.md`](references/entra-user-auth-and-runtime-contracts.md)
+   - Azure CLI and `az rest` app registration flow: [`references/entra-app-registration-cli.md`](references/entra-app-registration-cli.md)
+   - workload identity and secretless config: [`references/azure-workload-identity-and-secretless-config.md`](references/azure-workload-identity-and-secretless-config.md)
+   - Azure SQL identity and permissions: [`references/azure-sql-identity-and-permissions.md`](references/azure-sql-identity-and-permissions.md)
    - GitHub repository operations: [`references/github-repository-operations.md`](references/github-repository-operations.md)
    - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
    - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
@@ -93,6 +98,10 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
 - Use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication. Do not rely on a broad `DefaultAzureCredential` chain in production.
 - Use `DefaultAzureCredential` or Managed Identity only where runtime SDK support is real. Do not assume Prisma CLI or schema migration flows inherit that auth automatically.
 - Separate runtime identity from migration or admin identity.
+- When the app requires user authentication, prefer a separate dev or test app registration from the production registration, and use a separate test tenant when production-tenant policies or risk make safe testing hard.
+- Keep localhost redirect URIs in the dev or test registration, or document clearly why they still exist in another registration. Remove unnecessary development redirect URIs from the production registration.
+- Use test users, test groups, or invited guest users to complete local sign-in flows. If testing inside the production tenant, restrict the test enterprise application to specific users or groups.
+- Do not treat a hidden local auth bypass as the standard development path for an app that requires authentication.
 - Prefer scripted `az` or `az rest` app registration changes over portal-only click paths so redirect URIs, audience, and secret mode stay reproducible.
 - Use GitHub Actions OIDC to Azure. Do not store Azure client secrets in GitHub.
 - Keep repository governance explicit: protected default branch, required checks, and production Environment scoping.
@@ -134,6 +143,8 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
 - Prefer `web` platform redirect URIs and server-owned cookie sessions when React Router framework runtime already exists for Prisma, secrets, or protected server endpoints.
 - Use `spa` platform redirect URIs and browser PKCE only when the frontend is truly static and has no server-owned secret boundary.
 - Create or update the `Microsoft Entra ID` app registration from Azure CLI or `az rest`, and keep redirect URIs plus audience in versioned notes.
+- For local development, prefer a dev or test app registration with localhost callback URLs, test identities, and tenant policy settings that let the team complete sign-in safely without weakening production registration hygiene.
+- If developers need the same sign-in behavior as production, replicate the relevant Conditional Access, consent, and token-lifetime policies in the dev or test environment instead of bypassing auth in application code.
 - When a `web` registration needs a confidential client secret or certificate, keep it in Key Vault and resolve it through the same secretless config path used in production rather than copying it into `.env`.
 - Keep authorization decisions in use cases or domain policies.
 - Keep provider profile DTOs out of `domain` until a stable internal model is necessary.
@@ -168,6 +179,7 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
 - Run tests, typecheck, lint, and build.
 - Review boundary drift and forbidden imports.
 - Validate workflow syntax and IaC before release.
+- When the app requires user authentication, verify the documented local sign-in path with the intended dev or test users before release.
 - Smoke-test the deployed revision and confirm callback URLs, health checks, and DB connectivity.
 
 ### 8. Operate and hand off cleanly
@@ -183,9 +195,12 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
 - Need Azure deployment scripts: `scripts/azure/`
 - Need GitHub release and deploy workflows: `.github/workflows/`
 - Need health probes: `app/routes/health.ts`
-- Need `Microsoft Entra ID` auth, callback, or app registration guidance when authentication is required: `references/azure-identity-and-sql.md`
-- Need secretless server config bootstrap and parsing: `app/lib/server/infrastructure/config/` or the narrowest equivalent under `app/lib/server/infrastructure/`
-- Need Azure SQL or SDK adapters: `app/lib/server/infrastructure/repositories/` and `app/lib/server/infrastructure/gateways/`
+- Need `Microsoft Entra ID` auth contract, callback, or local sign-in guidance when authentication is required: `references/entra-user-auth-and-runtime-contracts.md`
+- Need reproducible Azure CLI or `az rest` app registration setup: `references/entra-app-registration-cli.md`
+- Need secretless server config bootstrap, App Configuration, Key Vault, or local `DefaultAzureCredential` guidance: `references/azure-workload-identity-and-secretless-config.md`
+- Need Azure SQL identity and permission guidance: `references/azure-sql-identity-and-permissions.md`
+- Need server config bootstrap and parsing implementation placement: `app/lib/server/infrastructure/config/` or the narrowest equivalent under `app/lib/server/infrastructure/`
+- Need Azure SQL or SDK adapters implementation placement: `app/lib/server/infrastructure/repositories/` and `app/lib/server/infrastructure/gateways/`
 - Need runtime config contract documentation: `README.md`
 
 ## References
@@ -199,7 +214,11 @@ Prefer a secretless configuration model: do not introduce `.env` or `.env.exampl
 - base hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
 - base verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
-- Azure identity and SQL, including conditional `Microsoft Entra ID` auth and Azure CLI app registration guidance for apps that require authentication: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+- Azure identity overview index: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
+- user auth, runtime contract, and local sign-in path: [`references/entra-user-auth-and-runtime-contracts.md`](references/entra-user-auth-and-runtime-contracts.md)
+- Azure CLI and `az rest` app registration flow: [`references/entra-app-registration-cli.md`](references/entra-app-registration-cli.md)
+- workload identity and secretless config: [`references/azure-workload-identity-and-secretless-config.md`](references/azure-workload-identity-and-secretless-config.md)
+- Azure SQL identity and permissions: [`references/azure-sql-identity-and-permissions.md`](references/azure-sql-identity-and-permissions.md)
 - GitHub repository operations: [`references/github-repository-operations.md`](references/github-repository-operations.md)
 - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
 - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
