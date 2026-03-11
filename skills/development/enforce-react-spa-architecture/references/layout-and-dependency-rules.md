@@ -22,6 +22,7 @@ app/
     server/
       usecase/
       infrastructure/
+        config/
         repositories/
         gateways/
     domain/

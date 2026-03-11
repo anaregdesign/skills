@@ -8,6 +8,7 @@ description: Enforce clean-architecture-based development and project bootstrap 
 ## Overview
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
+If a companion hosting skill explicitly overrides runtime mode or config bootstrap, keep these architecture and boundary rules and let the companion override only the hosting-specific pieces.
 
 ## Quick Start
 
@@ -34,6 +35,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
    - `app/lib/client/infrastructure/browser/`
    - `app/lib/server/usecase/`
    - `app/lib/server/infrastructure/`
+   - `app/lib/server/infrastructure/config/`
    - `app/lib/server/infrastructure/repositories/`
    - `app/lib/server/infrastructure/gateways/`
    - `app/lib/domain/entities/`
@@ -198,6 +200,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
 - Need a repository port or domain-facing persistence contract: `app/lib/domain/repositories/`
 - Need server orchestration: `app/lib/server/usecase/`
 - Need Prisma, file system, or external service code: `app/lib/server/infrastructure/`
+- Need platform-specific server config bootstrap or config readers: `app/lib/server/infrastructure/config/`
 - Need persistence implementations: `app/lib/server/infrastructure/repositories/`
 - Need external SDK or HTTP adapters: `app/lib/server/infrastructure/gateways/`
 - Need a reusable type or utility: place it with the owning route, use case, or domain module first; extract only after repeated reuse proves the boundary

@@ -39,7 +39,7 @@ Use this reference when the app needs GitHub-based CI/CD, container publishing, 
 
 ## Keep Release Metadata Clean
 
-- Update README, screenshots, and env-var docs before the release when those artifacts changed.
+- Update README, screenshots, and configuration contract docs before the release when those artifacts changed.
 - Use generated release notes as a baseline, then correct them when deploy behavior or operational caveats matter.
 - Avoid mutating old releases to cover broken workflow definitions. Publish a new patch release instead.
 

@@ -14,6 +14,7 @@ Assume this stack unless the user explicitly says otherwise:
 - Node.js 20.19+ or 22.x
 
 If the database is not PostgreSQL, swap the Prisma driver adapter and datasource provider accordingly.
+If a companion hosting skill explicitly requires a server runtime or a secretless platform-config bootstrap, let that companion override the `ssr: false` and local config-loading defaults in this file while keeping the rest of the layer rules.
 
 ## Preferred Bootstrap Path
 
@@ -36,7 +37,7 @@ cd my-app
 
 Use the TypeScript option when prompted.
 
-### 2. Switch the app to SPA mode
+### 2. Switch the app to SPA mode by default
 
 Create or update `react-router.config.ts`:
 
@@ -49,6 +50,7 @@ export default {
 ```
 
 This keeps React Router in SPA mode while still using framework conventions.
+If a companion hosting skill explicitly requires server runtime features such as OAuth callbacks, server-owned secrets, or platform-managed config bootstrap, do not force `ssr: false`.
 
 ### 3. Enable FlatRoute file routing
 
@@ -74,7 +76,7 @@ This is the cleanest match for the route-file conventions used by this skill.
 For the default PostgreSQL baseline:
 
 ```bash
-npm install @prisma/client@7 @prisma/adapter-pg pg dotenv
+npm install @prisma/client@7 @prisma/adapter-pg pg
 npm install -D prisma@7 tsx @types/pg
 ```
 
@@ -101,7 +103,6 @@ Keep the generated client under `app/lib/server/infrastructure/` so Prisma remai
 Create or update `prisma.config.ts`:
 
 ```ts
-import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
@@ -115,6 +116,8 @@ export default defineConfig({
   },
 });
 ```
+
+Feed `DATABASE_URL` from the shell, the process environment, or a companion platform-specific bootstrap. Do not add `dotenv` only because this example uses `env("DATABASE_URL")`.
 
 In `prisma/schema.prisma`, keep the generator output aligned with the server infrastructure layer:
 
@@ -136,7 +139,7 @@ Create `app/lib/server/infrastructure/prisma.server.ts` and keep Prisma construc
 
 Preferred responsibilities:
 
-- read the database URL from environment
+- read the database URL from process environment or a companion platform-specific config bootstrap
 - create the driver adapter
 - create or reuse the app-process `PrismaClient`
 - export a narrow factory or singleton used only by server infrastructure

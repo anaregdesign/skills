@@ -14,7 +14,6 @@ Use this reference when creating or hardening the target GitHub repository for A
 - `README.md`
 - `.gitignore`
 - `.github/workflows/`
-- `.env.example`
 - `azure.yaml`
 - `infra/`
 - `scripts/azure/`
@@ -32,6 +31,7 @@ Use this reference when creating or hardening the target GitHub repository for A
 - Create a `production` Environment for release deploys.
 - Store deployment IDs and non-secret config as Environment variables, not as repo-wide secrets.
 - Store only actual secrets as Environment secrets.
+- Prefer Azure App Configuration and Key Vault as the runtime config stores rather than expanding GitHub-hosted variables into an `.env`-style runtime source of truth.
 - Add protection rules when production deploys should require approval.
 - Keep the OIDC federated credential subject aligned with the repository and Environment name.
 
@@ -72,7 +72,7 @@ Use this reference when creating or hardening the target GitHub repository for A
 
 - Keep README deployment instructions current.
 - Keep screenshots and public URLs current when user-facing behavior changed.
-- Keep `.env.example` synchronized with runtime config parsing.
+- Keep configuration contract docs synchronized with App Configuration keys, Key Vault secret names, and runtime config parsing.
 - Keep workflow files validated with `actionlint`.
 
 ## Optional Governance Files
