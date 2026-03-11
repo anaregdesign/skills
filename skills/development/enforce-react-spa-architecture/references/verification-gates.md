@@ -9,8 +9,10 @@ Run verification in this order:
 3. Lint or project quality gate
 4. Architecture drift checks
 5. Manual spot check of the touched flow
+6. Commit history sanity check when preparing shared commits
 
 Do not push code that passes tests but breaks layer direction.
+Do not push a stack of shared commits that mixes unrelated reasons to change or ignores the repository's Conventional Commits rule.
 
 ## Architecture Drift Checklist
 
@@ -92,5 +94,7 @@ Before `git push`, be able to state all of the following:
 - `unknown` is used as a boundary quarantine type rather than a long-lived internal type
 - reusable helpers still live in a specific owning layer unless the abstraction is clearly stable
 - the changed area has tests or a clear reason why tests were not added
+- each shared commit title follows Conventional Commits 1.0.0
+- each shared commit represents one logical, reviewable work unit
 
 If any statement is false, fix the architecture before pushing.

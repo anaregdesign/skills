@@ -52,6 +52,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
    - Prisma usage rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
    - state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
    - chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
+   - commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
    - stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
    - hotspot refactor workflow: [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
    - verification before push: [`references/verification-gates.md`](references/verification-gates.md)
@@ -72,6 +73,8 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - When rendering charts, choose the simplest chart that matches the task: line charts for continuous trends over time, and bar or column charts for comparing discrete categories or ranked values.
 - Keep charts low-noise and accessible: avoid 3D or decorative chart junk, avoid color-only encoding, and keep critical values or explanations discoverable without hover.
 - For important charts, provide a nearby text summary and, when exact inspection matters, an accessible table or equivalent non-hover path to the underlying values.
+- Keep shared Git history in Conventional Commits 1.0.0 format, using one logical, reviewable, revertable work unit per commit whenever practical.
+- Split behavior changes, refactors, docs, tests, and dependency updates into separate commits when they represent different reasons to change, but do not force tiny broken commits just to satisfy granularity.
 - Keep async state, mutation handlers, and derived view models in `app/lib/client/usecase/`.
 - Co-locate `state`, `reducer`, `selector`, and `handler` modules inside the owning feature directory under `app/lib/client/usecase/<feature>/`.
 - Do not create horizontal buckets such as `app/state/`, `app/reducers/`, `app/stores/`, `app/handlers/`, or `app/lib/client/usecase/state/`.
@@ -182,14 +185,21 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Do not hide them inside random route handlers or repositories.
 - Use barrel exports sparingly and only when they do not obscure ownership or create cycles.
 
-### 11. Verify before push
+### 11. Commit in deliberate work units
+
+- Use Conventional Commits 1.0.0 for commit titles that will remain in shared history.
+- Prefer one logical change per commit, with scope when it improves traceability.
+- Split refactors from behavior changes whenever the split is real and reviewable.
+- Keep each commit internally coherent and, when practical, able to pass the relevant tests or quality gate for that slice.
+
+### 12. Verify before push
 
 - Run targeted tests for the touched area.
 - Run typecheck and lint or the project quality gate.
 - Audit for boundary drift and forbidden imports.
 - Fix architecture violations before pushing even if tests pass.
 
-### 12. Refactor overloaded files in phases
+### 13. Refactor overloaded files in phases
 
 - When a `ts` or `tsx` file has too many responsibilities, do not rewrite it in one jump.
 - Follow the hotspot workflow in [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md).
@@ -226,6 +236,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
 - [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
 - [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
+- [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
 - [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
 - [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
 - [`references/verification-gates.md`](references/verification-gates.md)
