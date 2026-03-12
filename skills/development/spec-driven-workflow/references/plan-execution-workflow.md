@@ -7,6 +7,7 @@ Use this reference when executing the active plan for a development request.
 - Create `/doc/plan.md` after the spec is clear enough to guide implementation.
 - Keep the spec link near the top of the plan.
 - Use only the hierarchy levels the work actually needs.
+- If the request was overly detailed, propose the higher-level goal you intend to use and get review on that reframing before filling in the plan tree.
 - Treat `/doc/plan.md` as temporary execution state, not as durable documentation.
 
 Example shape:

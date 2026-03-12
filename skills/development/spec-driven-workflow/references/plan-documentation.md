@@ -68,8 +68,10 @@ Use only the levels the work actually needs.
 - Start with one `Section` unless the work clearly needs more structure.
 - Add `Subsection` only when it helps group several reviewable slices.
 - Add `Sub-subsection` only when another level materially improves clarity.
+- If the incoming request is over-specified, propose the farthest stable goal you think captures it and ask the instruction giver to review that framing before shaping the plan tree.
 - Order `Section`, `Subsection`, and `Sub-subsection` blocks in the sequence they should be executed.
 - Keep the next executable lowest-level block near the top of the remaining plan.
+- Preserve true constraints and required sequencing, but do not turn every repeated instruction into its own checkbox.
 - Rewrite the plan when the execution path changes instead of appending stale history.
 - If technical investigation reveals a better execution path, revise the plan to match the current best approach instead of preserving the original guess.
 - Update the spec only when accepted user-visible behavior changes; technical replanning by itself belongs in `/doc/plan.md`.
