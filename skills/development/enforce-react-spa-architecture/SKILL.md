@@ -1,6 +1,6 @@
 ---
 name: enforce-react-spa-architecture
-description: "Own code-level clean-architecture guardrails for Vite-powered React Router + Prisma v7 applications. Use when bootstrapping or changing the app codebase itself: installing baseline app dependencies, placing modules, implementing or refactoring routes, loaders and actions, client use cases, domain models, Prisma-backed server code, Fluent UI React v9 screens, responsive UI, chart rendering, commit hygiene, and pre-push verification. Do not use this skill to drive `/doc/spec`, `/doc/plan.md`, branch-and-PR workflow, or Azure platform, identity, IaC, and release-infrastructure decisions."
+description: "Own code-level clean-architecture guardrails for Vite-powered React Router + Prisma v7 applications. Use when bootstrapping or changing the app codebase itself: installing baseline app dependencies, placing modules, implementing or refactoring routes, loaders and actions, client use cases, domain models, Prisma-backed server code, Fluent UI React v9 screens, responsive UI, chart rendering, and pre-push verification. Do not use this skill to drive `/doc/spec`, `/doc/plan.md`, repository workflow, or Azure platform, identity, IaC, and release-infrastructure decisions."
 ---
 
 # Enforce React Spa Architecture
@@ -8,8 +8,8 @@ description: "Own code-level clean-architecture guardrails for Vite-powered Reac
 ## Overview
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
-This skill owns code structure, dependency direction, UI guardrails, commit hygiene, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
-This skill also does not own `/doc/spec`, `/doc/plan.md`, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on app code.
+This skill owns code structure, dependency direction, UI guardrails, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
+This skill also does not own `/doc/spec`, `/doc/plan.md`, commit-log workflow, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on app code.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
 When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
 For responsive behavior, prefer guidance that keeps the same feature usable on both desktop and mobile rather than treating `mobile-first` as a universal process requirement.
@@ -61,7 +61,6 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
    - Prisma usage rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
    - state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
    - chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
-   - commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
    - responsive and mobile UI guidance: [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
    - Playwright UI verification workflow: [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
    - stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
@@ -84,8 +83,6 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - When rendering charts, choose the simplest chart that matches the task: line charts for continuous trends over time, and bar or column charts for comparing discrete categories or ranked values.
 - Keep charts low-noise and accessible: avoid 3D or decorative chart junk, avoid color-only encoding, and keep critical values or explanations discoverable without hover.
 - For important charts, provide a nearby text summary and, when exact inspection matters, an accessible table or equivalent non-hover path to the underlying values.
-- Keep shared Git history in Conventional Commits 1.0.0 format, using one logical, reviewable, revertable work unit per commit whenever practical.
-- Split behavior changes, refactors, docs, tests, and dependency updates into separate commits when they represent different reasons to change, but do not force tiny broken commits just to satisfy granularity.
 - Build responsive UI so the same feature stays capable on both desktop and mobile, using fluid layout primitives and content-driven breakpoints rather than device-name-specific forks or fixed desktop widths.
 - Support narrow-screen reflow and avoid ordinary horizontal scrolling for app UI. Do not lock orientation unless a single orientation is genuinely essential.
 - Do not rely on hover-only or fine-pointer-only interaction for primary actions, labels, or critical explanation. Keep a touch and keyboard path for the same task.
@@ -206,14 +203,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Do not hide them inside random route handlers or repositories.
 - Use barrel exports sparingly and only when they do not obscure ownership or create cycles.
 
-### 11. Commit in deliberate work units
-
-- Use Conventional Commits 1.0.0 for commit titles that will remain in shared history.
-- Prefer one logical change per commit, with scope when it improves traceability.
-- Split refactors from behavior changes whenever the split is real and reviewable.
-- Keep each commit internally coherent and, when practical, able to pass the relevant tests or quality gate for that slice.
-
-### 12. Verify before push
+### 11. Verify before push
 
 - Run targeted tests for the touched area.
 - Run typecheck and lint or the project quality gate.
@@ -221,7 +211,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - For UI-affecting changes, run the touched route in Playwright and confirm the rendered result, interaction states, and responsive layout.
 - Fix architecture violations before pushing even if tests pass.
 
-### 13. Refactor overloaded files in phases
+### 12. Refactor overloaded files in phases
 
 - When a `ts` or `tsx` file has too many responsibilities, do not rewrite it in one jump.
 - Follow the hotspot workflow in [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md).
@@ -264,7 +254,6 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Prisma boundary rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
 - view-state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
 - chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
-- commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
 - responsive and mobile UI guidance: [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
 - Playwright UI verification workflow: [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
 - stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)

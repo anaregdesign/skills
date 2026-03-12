@@ -1,36 +1,33 @@
 ---
 name: spec-driven-workflow
-description: "Own the spec-first planning and delivery workflow for feature or behavior work in branch-and-PR repositories. Use when the work needs user-visible requirements under `/doc/spec/`, a temporary execution plan in `/doc/plan.md`, horizon-based checklists using `Long-Term`, `Mid-Term`, and `Short-Term` sections as needed, semantic branch naming such as `feat/`, `fix/`, `docs/`, or `refactor/`, early draft PR creation, plan maintenance during implementation, merge readiness checks, and cleanup of the temporary plan file and working branch. Do not use this skill to decide app-code architecture, UI boundaries, or cloud platform topology."
+description: "Own the spec-first planning workflow for feature or behavior work. Use when the work needs user-visible requirements under `/doc/spec/`, a temporary execution plan in `/doc/plan.md`, horizon-based checklists using `Long-Term`, `Mid-Term`, and `Short-Term` sections as needed, checkbox maintenance during implementation, and cleanup of the temporary plan file once all tracked work is done. Do not use this skill to decide app-code architecture or cloud platform topology."
 ---
 
 # Spec Driven Workflow
 
 ## Overview
 
-Use this skill to turn a development request into a spec-first, plan-driven workflow. Capture the user-visible requirement in `/doc/spec/` first, then create a temporary execution tracker in `/doc/plan.md` and keep the spec, plan, branch, and PR synchronized until the work is merged.
+Use this skill to turn a development request into a spec-first, plan-driven workflow. Capture the user-visible requirement in `/doc/spec/` first, then create a temporary execution tracker in `/doc/plan.md` and keep the spec and plan synchronized until implementation is complete.
 Keep the requirements document focused on what the user sees, needs, and accepts. Keep `/doc/plan.md` focused on execution state, sequencing, and checkbox progress. Delete `/doc/plan.md` once every tracked checkbox is complete so only durable project documents remain.
-This skill owns planning and repository workflow artifacts, not app architecture or cloud platform rules. Pair it with the relevant coding or hosting skill after the spec and execution path are clear.
+This skill owns planning artifacts and shared commit-log workflow, not app architecture or cloud platform rules. Pair it with the relevant coding or hosting skill after the spec and execution path are clear.
 
 ## Quick Start
 
 1. Read [`references/spec-documentation.md`](references/spec-documentation.md) before writing or updating `/doc/spec/`.
 2. Read [`references/plan-documentation.md`](references/plan-documentation.md) before creating or rewriting `/doc/plan.md`.
-3. Read [`references/branch-and-pr-workflow.md`](references/branch-and-pr-workflow.md) before creating the branch or PR.
-4. For a new development request:
+3. Read [`references/commit-history-guidance.md`](references/commit-history-guidance.md) before recording shared commit history.
+4. Read [`references/plan-execution-workflow.md`](references/plan-execution-workflow.md) before executing the plan.
+5. For a new development request:
    - if `/doc/spec/` is empty or the relevant spec does not exist yet, start by creating the initial user-facing spec under `/doc/spec/`
    - create or update the temporary execution tracker in `/doc/plan.md`
    - choose only the planning horizons the work needs: `Short-Term` for simple work, `Mid-Term` plus `Short-Term` for multi-slice work, and `Long-Term` only when the work genuinely spans larger phases
-   - create a semantic working branch for the delivery unit, or continue on the existing active branch if it already tracks the same work
-   - open a draft PR early once the branch has the initial meaningful commit, or update the existing draft PR if one already tracks the work
-5. During implementation:
+6. During implementation:
    - keep `/doc/plan.md` checkboxes current
-   - keep the PR description linked to the spec and current plan while the plan exists
+   - record changes in deliberate, reviewable commit units
    - update the spec and plan if accepted behavior or execution sequence changes
-6. At completion:
+7. At completion:
    - confirm all plan checkboxes are done or intentionally removed
    - delete `/doc/plan.md`
-   - merge the PR
-   - delete the working branch when repository policy allows
 
 ## Non-Negotiable Rules
 
@@ -45,12 +42,11 @@ This skill owns planning and repository workflow artifacts, not app architecture
 - Break work into the smallest meaningful reviewable steps and record them as checkboxes under the lowest useful horizon.
 - Update checkboxes as work completes. Do not leave finished steps unchecked.
 - Remove or rewrite stale plan items when the work changes. Do not preserve obsolete steps just for history.
-- Use semantic branch prefixes aligned with the work type, preferably `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, or `test/`.
-- Open a draft PR early so the work has a review surface before the final merge.
-- Keep commit history reviewable and follow the repository's commit convention. Prefer Conventional Commits where the repository uses them.
-- Keep the spec, plan, branch, PR, and final merged state aligned. Do not let one artifact tell a different story from the others.
-- Merge only after the plan is complete, the PR reflects the final change, and required verification has passed.
-- If the repository has stronger branch protection, PR review, merge strategy, or naming rules, follow those rules while preserving this workflow's intent.
+- Keep shared commit history in Conventional Commits format when the repository uses it.
+- Prefer one logical, reviewable work unit per commit when practical.
+- Split behavior changes, refactors, docs, tests, and dependency updates into separate commits when they represent different reasons to change, but do not force tiny broken commits.
+- Keep the spec and plan aligned. Do not let one artifact tell a different story from the other.
+- Do not turn `/doc/plan.md` into a permanent history log. When the work is done, delete it.
 
 ## Workflow
 
@@ -60,7 +56,7 @@ This skill owns planning and repository workflow artifacts, not app architecture
 - If `/doc/spec/` exists but does not yet contain a relevant document for the request, start by creating the initial spec file.
 - Use a clear filename that ties back to the work item, typically with a stable slug.
 - Capture the request as a user-facing requirement document before writing the main implementation.
-- Link the spec to `/doc/plan.md` and the PR once those artifacts exist.
+- Link the spec to `/doc/plan.md` while the temporary plan exists.
 
 ### 2. Create or update `/doc/plan.md`
 
@@ -72,40 +68,24 @@ This skill owns planning and repository workflow artifacts, not app architecture
 - Add `Long-Term` only when the work spans larger phases or intentionally staged follow-up.
 - Keep plan items about delivery steps, not vague aspirations.
 
-### 3. Create or continue on the working branch
-
-- Branch from the repository's normal base branch unless the repo requires another starting point.
-- Prefer a branch name aligned with the intended Conventional Commit type, such as `feat/<slug>` or `fix/<slug>`.
-- If the same delivery unit already has an active working branch, continue on it unless the work has intentionally been split.
-- Keep one branch focused on one coherent delivery unit whenever practical.
-
-### 4. Open or update the PR early
-
-- Push the branch once the initial meaningful commit exists, typically the spec and plan setup or the first reviewed slice.
-- Open a draft PR early rather than waiting for the entire feature to be complete.
-- If a draft PR already exists for the branch, update it instead of opening a duplicate PR.
-- Link the PR to the spec and, while it exists, `/doc/plan.md`.
-- Before final merge, make sure the PR summary still stands on its own after `/doc/plan.md` is deleted.
-
-### 5. Implement and keep the workflow current
+### 3. Implement and keep the workflow current
 
 - Complete work one meaningful slice at a time.
 - Check off the matching plan checkbox as each slice is finished.
 - Update `/doc/plan.md` if work moves between `Long-Term`, `Mid-Term`, and `Short-Term` horizons.
-- Update the PR description and spec if scope or accepted behavior changes.
-- Keep commit messages aligned with the repository convention. Prefer Conventional Commits when the repository uses them.
-- Keep commits reviewable and aligned with the current plan.
+- Record progress in coherent commits that match the current execution slice.
+- Update the spec when accepted behavior changes.
+- Keep the active plan small enough to stay useful.
 
-### 6. Finish cleanly
+### 4. Finish cleanly
 
 - Confirm every plan checkbox is complete or intentionally removed.
 - Delete `/doc/plan.md` once there is no remaining tracked work.
-- Confirm the PR summary matches the delivered behavior and does not depend on the deleted plan file.
-- Merge the PR with the repository's preferred strategy.
-- Delete the remote branch when repository policy allows, and clean up the local branch.
+- Keep the durable behavior description in `/doc/spec/`, not in the deleted plan file.
 
 ## References
 
 - spec-writing guidance: [`references/spec-documentation.md`](references/spec-documentation.md)
 - `/doc/plan.md` horizon structure and checkbox guidance: [`references/plan-documentation.md`](references/plan-documentation.md)
-- branch, PR, merge, and cleanup workflow: [`references/branch-and-pr-workflow.md`](references/branch-and-pr-workflow.md)
+- commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
+- plan execution and cleanup workflow: [`references/plan-execution-workflow.md`](references/plan-execution-workflow.md)

@@ -8,8 +8,8 @@ description: "Own Azure platform, identity, secretless config, IaC, and GitHub r
 ## Overview
 
 Use this skill to layer Azure hosting, identity, and GitHub delivery decisions onto the base React Router clean architecture owned by `enforce-react-spa-architecture`. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
-This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, and release workflow guidance. Keep code structure, UI guardrails, commit hygiene, and general verification rules in the companion skill, and repeat them here only when they are critical to protect Azure-specific boundaries.
-This skill does not own `/doc/spec`, `/doc/plan.md`, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
+This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, and release workflow guidance. Keep code structure, UI guardrails, and general verification rules in the companion skill, and repeat them here only when they are critical to protect Azure-specific boundaries.
+This skill does not own `/doc/spec`, `/doc/plan.md`, commit-log workflow, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
 When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.
@@ -43,7 +43,6 @@ When the app requires user authentication, prefer a real local sign-in path with
    - Prisma boundary rules: [`../enforce-react-spa-architecture/references/prisma-boundary-rules.md`](../enforce-react-spa-architecture/references/prisma-boundary-rules.md)
    - view-state and handler composition: [`../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md`](../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md)
    - chart and data visualization guidance: [`../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md`](../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md)
-   - commit history guidance: [`../enforce-react-spa-architecture/references/commit-history-guidance.md`](../enforce-react-spa-architecture/references/commit-history-guidance.md)
    - responsive and mobile UI guidance: [`../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md`](../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md)
    - Playwright UI verification workflow: [`../enforce-react-spa-architecture/references/playwright-ui-verification.md`](../enforce-react-spa-architecture/references/playwright-ui-verification.md)
    - stateful flow compromise rules: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
@@ -96,7 +95,7 @@ When the app requires user authentication, prefer a real local sign-in path with
 ## Non-Negotiable Rules
 
 - Install and keep `enforce-react-spa-architecture` available together with this skill.
-- Keep all dependency, placement, UI, commit, and verification rules from `enforce-react-spa-architecture`.
+- Keep all dependency, placement, UI, and verification rules from `enforce-react-spa-architecture`.
 - Do not redefine the companion skill's general coding guardrails here. Use this skill for Azure, identity, infrastructure, and delivery deltas, and repeat code-level rules only when they protect those deltas.
 - Keep Prisma and Azure SDK imports inside server infrastructure or deployment code.
 - Treat "SPA" as a UX target, not as a requirement to remove the server runtime.
@@ -225,7 +224,6 @@ When the app requires user authentication, prefer a real local sign-in path with
 - base Prisma boundary rules: [`../enforce-react-spa-architecture/references/prisma-boundary-rules.md`](../enforce-react-spa-architecture/references/prisma-boundary-rules.md)
 - base view-state patterns: [`../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md`](../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md)
 - base chart and data visualization guidance: [`../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md`](../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md)
-- base commit history guidance: [`../enforce-react-spa-architecture/references/commit-history-guidance.md`](../enforce-react-spa-architecture/references/commit-history-guidance.md)
 - base responsive and mobile UI guidance: [`../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md`](../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md)
 - base Playwright UI verification workflow: [`../enforce-react-spa-architecture/references/playwright-ui-verification.md`](../enforce-react-spa-architecture/references/playwright-ui-verification.md)
 - base stateful-flow compromises: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)

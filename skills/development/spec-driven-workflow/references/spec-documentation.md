@@ -48,7 +48,7 @@ If no relevant spec exists yet, start by creating the first spec document before
 - What is explicitly out of scope
 - What counts as done from the user's perspective
 - What edge cases or error paths still matter to the user
-- Which plan file and PR currently implement the work, when those artifacts exist
+- Which temporary plan file currently tracks the work, when that artifact exists
 
 ## Starting From Nothing
 

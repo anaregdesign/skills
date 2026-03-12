@@ -25,7 +25,6 @@ Use only the horizons the work actually needs.
 
 ## Links
 - Spec: /doc/spec/<name>.md
-- PR: <link or pending>
 
 ## Long-Term
 - [ ] <optional larger phase>
@@ -52,7 +51,7 @@ Use only the horizons the work actually needs.
   - `[ ] Write or update /doc/spec/<name>.md`
   - `[ ] Add or update the route or API surface for the new behavior`
   - `[ ] Implement the UI or server slice`
-  - `[ ] Run verification and prepare the PR summary`
+  - `[ ] Run verification and update the plan`
 - `## Mid-Term`
   - `[ ] Complete the first end-to-end reviewed slice`
   - `[ ] Complete the remaining supporting slice`
@@ -70,7 +69,7 @@ Use only the horizons the work actually needs.
 
 - Start with `Short-Term` unless the work clearly needs more structure.
 - Add `Mid-Term` only when it helps group several reviewable slices.
-- Add `Long-Term` only when the branch intentionally spans larger phases.
+- Add `Long-Term` only when the current work intentionally spans larger phases.
 - Move work downward as it becomes actionable rather than duplicating the same task in every horizon.
 - Rewrite the plan when the execution path changes instead of appending stale history.
 

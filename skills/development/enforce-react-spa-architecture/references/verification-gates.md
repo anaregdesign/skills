@@ -13,7 +13,6 @@ Run verification in this order:
 7. Commit history sanity check when preparing shared commits
 
 Do not push code that passes tests but breaks layer direction.
-Do not push a stack of shared commits that mixes unrelated reasons to change or ignores the repository's Conventional Commits rule.
 Do not push UI-affecting changes that were never checked in a real rendered browser flow.
 
 ## Architecture Drift Checklist
@@ -97,7 +96,4 @@ Before `git push`, be able to state all of the following:
 - reusable helpers still live in a specific owning layer unless the abstraction is clearly stable
 - the changed area has tests or a clear reason why tests were not added
 - UI-affecting changes were checked in Playwright at the relevant route, viewport sizes, and orientation when needed
-- each shared commit title follows Conventional Commits 1.0.0
-- each shared commit represents one logical, reviewable work unit
-
 If any statement is false, fix the architecture before pushing.
