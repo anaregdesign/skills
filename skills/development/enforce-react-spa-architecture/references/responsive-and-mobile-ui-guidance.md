@@ -6,7 +6,7 @@ Keep the UI usable, readable, and touch-friendly from narrow mobile screens up t
 
 ## Core Approach
 
-- Design mobile-first and scale up from the most constrained layout.
+- Design responsive layouts that stay capable on both mobile and desktop. Start from the most constrained layout when it helps, but do not treat a rigid mobile-first process as mandatory.
 - Use fluid layout primitives such as CSS Grid, Flexbox, intrinsic sizing, and percentage or `clamp()`-based sizing before adding hard breakpoints.
 - Choose breakpoints from content pressure, not from device marketing names.
 - Keep media, cards, panels, and data containers able to shrink or wrap instead of assuming desktop width.

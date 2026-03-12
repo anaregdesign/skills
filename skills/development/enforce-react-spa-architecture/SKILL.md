@@ -83,7 +83,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - For important charts, provide a nearby text summary and, when exact inspection matters, an accessible table or equivalent non-hover path to the underlying values.
 - Keep shared Git history in Conventional Commits 1.0.0 format, using one logical, reviewable, revertable work unit per commit whenever practical.
 - Split behavior changes, refactors, docs, tests, and dependency updates into separate commits when they represent different reasons to change, but do not force tiny broken commits just to satisfy granularity.
-- Build responsive UI mobile-first with fluid layout primitives and content-driven breakpoints, not device-name-specific forks or fixed desktop widths.
+- Build responsive UI so the same feature stays capable on both desktop and mobile, using fluid layout primitives and content-driven breakpoints rather than device-name-specific forks or fixed desktop widths.
 - Support narrow-screen reflow and avoid ordinary horizontal scrolling for app UI. Do not lock orientation unless a single orientation is genuinely essential.
 - Do not rely on hover-only or fine-pointer-only interaction for primary actions, labels, or critical explanation. Keep a touch and keyboard path for the same task.
 - Keep touch targets and spacing mobile-usable. Meet at least WCAG 2.2 minimum target size expectations or provide equivalent spacing, and use larger targets when practical.
