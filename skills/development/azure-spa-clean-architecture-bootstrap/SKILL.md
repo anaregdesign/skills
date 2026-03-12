@@ -1,6 +1,6 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: Add Azure hosting, identity, secretless config, and GitHub delivery guidance on top of enforce-react-spa-architecture for Vite-powered React Router + Prisma v7 web apps. This skill extends enforce-react-spa-architecture and should be installed with it. Use when creating or evolving a React Router SPA-style app that must ship on Azure, adding Microsoft Entra ID authentication or Azure CLI app registration when authentication is required, adding Azure Container Apps or Azure SQL, wiring Managed Identity or DefaultAzureCredential, configuring GitHub Releases, GHCR, and GitHub Actions OIDC, or preparing CI/CD, release, and deployment workflows.
+description: "Own Azure platform, identity, secretless config, IaC, and GitHub release and deployment automation for React Router + Prisma v7 web apps that already follow enforce-react-spa-architecture. Use when the work is primarily Azure runtime-mode selection, Microsoft Entra ID integration or Azure CLI app registration when end-user authentication is required, Azure Container Apps, Azure SQL, Azure App Configuration, Key Vault, Managed Identity, local DefaultAzureCredential setup, GitHub Actions OIDC, GHCR image release, or production deployment verification. Do not use this skill for generic GitHub Issue or PR workflow or for base app-code architecture rules."
 ---
 
 # Azure Spa Clean Architecture Bootstrap
@@ -9,6 +9,7 @@ description: Add Azure hosting, identity, secretless config, and GitHub delivery
 
 Use this skill to layer Azure hosting, identity, and GitHub delivery decisions onto the base React Router clean architecture owned by `enforce-react-spa-architecture`. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
 This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, and release workflow guidance. Keep code structure, UI guardrails, commit hygiene, and general verification rules in the companion skill, and repeat them here only when they are critical to protect Azure-specific boundaries.
+This skill does not own `/doc/spec`, GitHub Issue lifecycle, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
 When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.
@@ -30,13 +31,23 @@ When the app requires user authentication, prefer a real local sign-in path with
    - published URL: `https://github.com/anaregdesign/skills/tree/main/skills/development/enforce-react-spa-architecture`
    - if missing, install it with `$skill-installer` before reading the sibling references
 3. Read the base architecture references from the sibling skill:
+   - full architecture overview index for multi-boundary changes: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
    - project bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
    - layout and module placement: [`../enforce-react-spa-architecture/references/layout-and-module-placement.md`](../enforce-react-spa-architecture/references/layout-and-module-placement.md)
    - client layer responsibilities: [`../enforce-react-spa-architecture/references/client-layer-responsibilities.md`](../enforce-react-spa-architecture/references/client-layer-responsibilities.md)
    - server and domain layer responsibilities: [`../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md`](../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md)
    - boundary and contract rules: [`../enforce-react-spa-architecture/references/boundary-and-contract-rules.md`](../enforce-react-spa-architecture/references/boundary-and-contract-rules.md)
+   - domain modeling and type rules: [`../enforce-react-spa-architecture/references/domain-modeling-and-type-rules.md`](../enforce-react-spa-architecture/references/domain-modeling-and-type-rules.md)
+   - dependency injection and side-effect rules: [`../enforce-react-spa-architecture/references/dependency-injection-lifetime-and-side-effects.md`](../enforce-react-spa-architecture/references/dependency-injection-lifetime-and-side-effects.md)
    - FlatRoute REST API rules: [`../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md`](../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md)
    - Prisma boundary rules: [`../enforce-react-spa-architecture/references/prisma-boundary-rules.md`](../enforce-react-spa-architecture/references/prisma-boundary-rules.md)
+   - view-state and handler composition: [`../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md`](../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md)
+   - chart and data visualization guidance: [`../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md`](../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md)
+   - commit history guidance: [`../enforce-react-spa-architecture/references/commit-history-guidance.md`](../enforce-react-spa-architecture/references/commit-history-guidance.md)
+   - responsive and mobile UI guidance: [`../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md`](../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md)
+   - Playwright UI verification workflow: [`../enforce-react-spa-architecture/references/playwright-ui-verification.md`](../enforce-react-spa-architecture/references/playwright-ui-verification.md)
+   - stateful flow compromise rules: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
+   - hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
 4. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
@@ -203,10 +214,20 @@ When the app requires user authentication, prefer a real local sign-in path with
 ## References
 
 - base architecture bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
-- base dependency rules: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
+- base architecture overview index: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
+- base layout and placement rules: [`../enforce-react-spa-architecture/references/layout-and-module-placement.md`](../enforce-react-spa-architecture/references/layout-and-module-placement.md)
+- base client layer responsibilities: [`../enforce-react-spa-architecture/references/client-layer-responsibilities.md`](../enforce-react-spa-architecture/references/client-layer-responsibilities.md)
+- base server and domain layer responsibilities: [`../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md`](../enforce-react-spa-architecture/references/server-and-domain-layer-responsibilities.md)
+- base boundary and contract rules: [`../enforce-react-spa-architecture/references/boundary-and-contract-rules.md`](../enforce-react-spa-architecture/references/boundary-and-contract-rules.md)
+- base domain modeling and type rules: [`../enforce-react-spa-architecture/references/domain-modeling-and-type-rules.md`](../enforce-react-spa-architecture/references/domain-modeling-and-type-rules.md)
+- base dependency injection and side-effect rules: [`../enforce-react-spa-architecture/references/dependency-injection-lifetime-and-side-effects.md`](../enforce-react-spa-architecture/references/dependency-injection-lifetime-and-side-effects.md)
 - base FlatRoute REST rules: [`../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md`](../enforce-react-spa-architecture/references/flat-route-rest-api-guidelines.md)
 - base Prisma boundary rules: [`../enforce-react-spa-architecture/references/prisma-boundary-rules.md`](../enforce-react-spa-architecture/references/prisma-boundary-rules.md)
 - base view-state patterns: [`../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md`](../enforce-react-spa-architecture/references/view-state-and-handler-patterns.md)
+- base chart and data visualization guidance: [`../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md`](../enforce-react-spa-architecture/references/chart-and-data-visualization-guidance.md)
+- base commit history guidance: [`../enforce-react-spa-architecture/references/commit-history-guidance.md`](../enforce-react-spa-architecture/references/commit-history-guidance.md)
+- base responsive and mobile UI guidance: [`../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md`](../enforce-react-spa-architecture/references/responsive-and-mobile-ui-guidance.md)
+- base Playwright UI verification workflow: [`../enforce-react-spa-architecture/references/playwright-ui-verification.md`](../enforce-react-spa-architecture/references/playwright-ui-verification.md)
 - base stateful-flow compromises: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
 - base hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
 - base verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)

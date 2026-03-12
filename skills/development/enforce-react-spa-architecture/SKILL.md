@@ -1,6 +1,6 @@
 ---
 name: enforce-react-spa-architecture
-description: Enforce clean-architecture-based development and project bootstrap for Vite-powered React Router + Prisma v7 single-page applications. Use when initializing a new project, installing core dependencies, implementing features, refactoring structure, reviewing code, running quality gates, or preparing to push changes in a React Router SPA that should keep FlatRoute modules thin, components presentational, Prisma server-only, dependencies flowing inward, and new UI work aligned to Fluent UI React v9 unless an established design system already owns the repo.
+description: "Own code-level clean-architecture guardrails for Vite-powered React Router + Prisma v7 applications. Use when bootstrapping or changing the app codebase itself: installing baseline app dependencies, placing modules, implementing or refactoring routes, loaders and actions, client use cases, domain models, Prisma-backed server code, Fluent UI React v9 screens, responsive UI, chart rendering, commit hygiene, and pre-push verification. Do not use this skill to drive `/doc/spec`, GitHub Issue or PR workflow, or Azure platform, identity, IaC, and release-infrastructure decisions."
 ---
 
 # Enforce React Spa Architecture
@@ -9,6 +9,7 @@ description: Enforce clean-architecture-based development and project bootstrap 
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
 This skill owns code structure, dependency direction, UI guardrails, commit hygiene, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
+This skill also does not own `/doc/spec`, GitHub Issue lifecycle, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on app code.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
 When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
 For responsive behavior, prefer guidance that keeps the same feature usable on both desktop and mobile rather than treating `mobile-first` as a universal process requirement.
@@ -49,6 +50,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
    - `app/lib/domain/repositories/`
 3. Read the matching reference file before implementing:
    - project bootstrap and dependency install: [`references/project-bootstrap.md`](references/project-bootstrap.md)
+   - architecture overview index for multi-boundary changes: [`references/layout-and-dependency-rules.md`](references/layout-and-dependency-rules.md)
    - layout and module placement: [`references/layout-and-module-placement.md`](references/layout-and-module-placement.md)
    - client layer responsibilities: [`references/client-layer-responsibilities.md`](references/client-layer-responsibilities.md)
    - server and domain layer responsibilities: [`references/server-and-domain-layer-responsibilities.md`](references/server-and-domain-layer-responsibilities.md)
@@ -250,20 +252,21 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 
 ## References
 
-- [`references/project-bootstrap.md`](references/project-bootstrap.md)
-- [`references/layout-and-module-placement.md`](references/layout-and-module-placement.md)
-- [`references/client-layer-responsibilities.md`](references/client-layer-responsibilities.md)
-- [`references/server-and-domain-layer-responsibilities.md`](references/server-and-domain-layer-responsibilities.md)
-- [`references/boundary-and-contract-rules.md`](references/boundary-and-contract-rules.md)
-- [`references/domain-modeling-and-type-rules.md`](references/domain-modeling-and-type-rules.md)
-- [`references/dependency-injection-lifetime-and-side-effects.md`](references/dependency-injection-lifetime-and-side-effects.md)
-- [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
-- [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
-- [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
-- [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
-- [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
-- [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
-- [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
-- [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
-- [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
-- [`references/verification-gates.md`](references/verification-gates.md)
+- project bootstrap and baseline dependency install: [`references/project-bootstrap.md`](references/project-bootstrap.md)
+- overview index for placement and dependency rules: [`references/layout-and-dependency-rules.md`](references/layout-and-dependency-rules.md)
+- layout and module placement: [`references/layout-and-module-placement.md`](references/layout-and-module-placement.md)
+- client layer responsibilities: [`references/client-layer-responsibilities.md`](references/client-layer-responsibilities.md)
+- server and domain layer responsibilities: [`references/server-and-domain-layer-responsibilities.md`](references/server-and-domain-layer-responsibilities.md)
+- boundary and contract rules: [`references/boundary-and-contract-rules.md`](references/boundary-and-contract-rules.md)
+- domain modeling and type rules: [`references/domain-modeling-and-type-rules.md`](references/domain-modeling-and-type-rules.md)
+- dependency injection, lifetime, and side-effect rules: [`references/dependency-injection-lifetime-and-side-effects.md`](references/dependency-injection-lifetime-and-side-effects.md)
+- FlatRoute REST API guidance: [`references/flat-route-rest-api-guidelines.md`](references/flat-route-rest-api-guidelines.md)
+- Prisma boundary rules: [`references/prisma-boundary-rules.md`](references/prisma-boundary-rules.md)
+- view-state and handler composition: [`references/view-state-and-handler-patterns.md`](references/view-state-and-handler-patterns.md)
+- chart and data visualization guidance: [`references/chart-and-data-visualization-guidance.md`](references/chart-and-data-visualization-guidance.md)
+- commit history and Conventional Commits guidance: [`references/commit-history-guidance.md`](references/commit-history-guidance.md)
+- responsive and mobile UI guidance: [`references/responsive-and-mobile-ui-guidance.md`](references/responsive-and-mobile-ui-guidance.md)
+- Playwright UI verification workflow: [`references/playwright-ui-verification.md`](references/playwright-ui-verification.md)
+- stateful flow compromise rules: [`references/stateful-flow-compromises.md`](references/stateful-flow-compromises.md)
+- hotspot refactor workflow: [`references/hotspot-refactor-workflow.md`](references/hotspot-refactor-workflow.md)
+- verification before push: [`references/verification-gates.md`](references/verification-gates.md)

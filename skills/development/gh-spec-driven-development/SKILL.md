@@ -1,6 +1,6 @@
 ---
 name: gh-spec-driven-development
-description: Drive spec-first GitHub development workflow for product or feature work. Use when a user asks to implement a feature, change behavior, or start development in a GitHub-backed repository and you need to document complete user-visible requirements under `/doc/spec`, create or update a GitHub Issue, create a working branch named with a Conventional-Commits-aligned prefix such as `feat/`, `fix/`, `docs/`, or `refactor/`, open a draft PR early, break the work into the smallest meaningful steps as issue task-list checkboxes, keep those checkboxes updated as work finishes, and complete the flow by merging the PR, closing the issue, and deleting the branch.
+description: "Own the spec-first GitHub product-delivery workflow for feature or behavior work in GitHub-backed repositories. Use when the work needs `/doc/spec` documentation, GitHub Issue task lists, semantic branch naming such as `feat/`, `fix/`, `docs/`, or `refactor/`, early draft PR creation, checkbox maintenance during implementation, merge readiness checks, Issue closure, and branch cleanup. Do not use this skill to decide app-code architecture, UI boundaries, or Azure platform and deployment topology."
 ---
 
 # Gh Spec Driven Development
@@ -9,6 +9,7 @@ description: Drive spec-first GitHub development workflow for product or feature
 
 Use this skill to turn a development request into a spec-first GitHub workflow. Capture the user-visible requirement in `/doc/spec/` first, then keep the spec, Issue, branch, PR, and final cleanup synchronized until the work is merged.
 Keep the requirements document focused on what the user sees, needs, and accepts. Keep the GitHub artifacts focused on execution state, reviewability, and closure.
+This skill owns repository workflow artifacts, not app architecture or cloud platform rules. Pair it with the relevant coding or hosting skill after the spec and GitHub execution path are clear.
 
 ## Quick Start
 
