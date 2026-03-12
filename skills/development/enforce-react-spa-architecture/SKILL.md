@@ -11,6 +11,7 @@ Use this skill as the default architecture workflow for a React Router SPA that 
 This skill owns code structure, dependency direction, UI guardrails, commit hygiene, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
 When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
+For responsive behavior, prefer guidance that keeps the same feature usable on both desktop and mobile rather than treating `mobile-first` as a universal process requirement.
 If a companion hosting skill explicitly overrides runtime mode or config bootstrap, keep these architecture and boundary rules and let the companion override only the hosting-specific pieces.
 
 ## Quick Start
