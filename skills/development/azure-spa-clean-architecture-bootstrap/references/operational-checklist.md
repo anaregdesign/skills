@@ -2,6 +2,14 @@
 
 Use this reference before release, after deployment, or when handing work back to the user.
 
+## At Project Start
+
+- Confirm which Azure tenant, subscription, and resource scopes are definitely required.
+- Confirm which RBAC assignments are definitely required for developers, runtime identities, migration identities, and deploy identities.
+- Confirm whether Azure SQL Microsoft Entra admin setup is required.
+- Confirm whether GitHub Actions OIDC setup is enough or whether an unavoidable Service Principal is still required.
+- Ask for those prerequisites early so they do not block implementation or release work later.
+
 ## Before Push
 
 - Run targeted tests for touched features.
@@ -9,6 +17,7 @@ Use this reference before release, after deployment, or when handing work back t
 - Review architecture boundaries and forbidden imports.
 - Validate workflow syntax and infrastructure files.
 - Confirm the app no longer depends on `.env` or `.env.example` for Azure runtime behavior.
+- If local development uses SQLite, confirm no Azure-hosted config, scripts, or docs still point at SQLite.
 
 ## Before Release
 
@@ -17,6 +26,8 @@ Use this reference before release, after deployment, or when handing work back t
 - Confirm GitHub Environment variables and Azure-side identities exist.
 - Confirm App Configuration keys and Key Vault secrets match the runtime config contract.
 - When the app requires user authentication, confirm the documented local sign-in path still works with the intended dev or test identities.
+- Confirm the hosted environment uses Azure SQL Database rather than SQLite.
+- Confirm migrations and critical persistence flows were validated against Azure SQL Database, not only against local SQLite.
 - Confirm the release workflow deploys the immutable release tag, not `latest`.
 
 ## After Release

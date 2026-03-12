@@ -5,13 +5,22 @@ Use this reference when the app needs Azure hosting, Azure-managed secrets, or p
 ## Default Platform Choices
 
 - Use Azure Container Apps for React Router apps that need a server runtime.
-- Use Azure SQL Database serverless for relational persistence when the app needs shared relational data, unless workload characteristics force another SKU.
+- Use SQLite for local development when the app needs relational persistence.
+- Use Azure SQL Database serverless for Azure-hosted relational persistence, unless workload characteristics force another SKU.
 - When authentication is required, use `Microsoft Entra ID` for Microsoft authentication and keep app registration setup scriptable with `az` or `az rest`.
 - Use Azure App Configuration for non-secret runtime settings.
 - Use Key Vault for runtime secrets and secret rotation.
 - Use Application Insights and Log Analytics for telemetry and diagnostics.
 - Use Managed Identity for deployed app runtime access to Azure resources and Azure SQL.
 - Use GitHub Actions OIDC for deployment access to Azure.
+
+## Front-Load Prerequisites
+
+- At project start, identify the Azure tenant, subscription, and resource scopes the work will definitely need.
+- Request required RBAC assignments early for developers, runtime identities, migration identities, and deploy identities.
+- Request Azure SQL Microsoft Entra admin setup early when hosted relational persistence is in scope.
+- Request App Configuration and Key Vault access early when the app bootstrap depends on them.
+- Prefer Managed Identity and GitHub Actions OIDC, but if an unavoidable Service Principal is required, request or provision it during bootstrap rather than near release.
 
 ## Treat "SPA" Correctly
 
@@ -43,7 +52,8 @@ Use this reference when the app needs Azure hosting, Azure-managed secrets, or p
 
 ## Correct Common Mistakes
 
-- Do not keep SQLite as the production store when the app needs shared history, multi-user competition, or cloud failover.
+- Do not keep SQLite in an Azure-hosted environment. SQLite is local-development-only storage in this workflow.
+- Do not assume SQLite behavior proves Azure SQL Database behavior. Validate migrations and critical queries against Azure SQL Database before release.
 - Do not inject Azure secrets directly into the repo or into long-lived GitHub secrets if OIDC or Managed Identity can replace them.
 - Do not introduce `.env` or `.env.example` for Azure runtime configuration. Use Azure App Configuration plus Key Vault so local development and deployed runtime follow the same secretless model.
 - Do not describe local development as "Managed Identity". Local development should use `DefaultAzureCredential`; deployed Azure runtime should use `ManagedIdentityCredential`.
@@ -66,6 +76,7 @@ Use this reference when the app needs Azure hosting, Azure-managed secrets, or p
 - Validate the infra plan before deploy.
 - Build the container image locally or in CI.
 - Verify local development can load Azure-backed config after `az login` or `azd auth login` without any `.env` file.
+- Verify local development uses the intended SQLite path and that Azure-hosted configuration points to Azure SQL Database instead.
 - Verify the health route responds after deploy.
 - Verify the app registration audience and redirect URIs match local, staging, and production URLs.
 - Verify the app can reach its backing services with production auth mode.

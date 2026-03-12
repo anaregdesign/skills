@@ -67,6 +67,7 @@ Use this reference when creating or hardening the target GitHub repository for A
 - Scope the federated credential subject to the exact repository and Environment.
 - Give the deploy identity only the Azure role scope it needs.
 - Keep runtime Managed Identity separate from the deploy identity.
+- If the repository will definitely deploy to Azure, request the OIDC-backed Azure application, Service Principal, federated credential, and scoped RBAC assignment early in the project instead of waiting until release cutover.
 
 ## Repository Hygiene
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Azure SPA Clean Architecture"
   short_description: "Own Azure platform, identity, and release automation for the base React SPA architecture"
-  default_prompt: "Use $azure-spa-clean-architecture-bootstrap together with $enforce-react-spa-architecture when the work is primarily Azure hosting, secretless config, deployment, release automation, or Microsoft Entra ID and app registration only when end-user authentication is required. Do not use it for spec, planning, or commit-log workflow."
+  default_prompt: "Use $azure-spa-clean-architecture-bootstrap together with $enforce-react-spa-architecture when the work is primarily Azure hosting, secretless config, deployment, release automation, Microsoft Entra ID and app registration only when end-user authentication is required, or a local SQLite development plus Azure SQL Database hosted persistence split. Front-load definitely required Azure permissions, RBAC, SQL admin setup, and any unavoidable Service Principal or OIDC deploy identity. Do not use it for spec, planning, or commit-log workflow."

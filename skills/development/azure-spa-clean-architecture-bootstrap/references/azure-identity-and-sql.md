@@ -14,4 +14,4 @@ Use this overview when the app needs Azure workload identity, Azure SQL, or `Mic
 - Open the auth contract reference first when the app has a user sign-in requirement.
 - Open the CLI reference when redirect URIs, audience, or confidential-client setup must be reproducible.
 - Open the workload identity reference when the app needs App Configuration, Key Vault, or local Azure bootstrap without `.env`.
-- Open the Azure SQL reference when the app needs DB identity design, role assignment, or permission separation.
+- Open the Azure SQL reference when the app uses local SQLite development but must run on Azure SQL Database in hosted environments, or when it needs DB identity design, role assignment, or permission separation.

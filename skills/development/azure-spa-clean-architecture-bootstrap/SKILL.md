@@ -1,6 +1,6 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: "Own Azure platform, identity, secretless config, IaC, and GitHub release and deployment automation for React Router + Prisma v7 web apps that already follow enforce-react-spa-architecture. Use when the work is primarily Azure runtime-mode selection, Microsoft Entra ID integration or Azure CLI app registration when end-user authentication is required, Azure Container Apps, Azure SQL, Azure App Configuration, Key Vault, Managed Identity, local DefaultAzureCredential setup, GitHub Actions OIDC, GHCR image release, or production deployment verification. Do not use this skill for spec, planning, or branch-and-PR workflow or for base app-code architecture rules."
+description: "Own Azure platform, identity, secretless config, IaC, and GitHub release and deployment automation for React Router + Prisma v7 web apps that already follow enforce-react-spa-architecture. Use when the work is primarily Azure runtime-mode selection, Microsoft Entra ID integration or Azure CLI app registration when end-user authentication is required, Azure Container Apps, local SQLite development with Azure SQL Database for hosted persistence, Azure App Configuration, Key Vault, Managed Identity, local DefaultAzureCredential setup, GitHub Actions OIDC, GHCR image release, or production deployment verification. Do not use this skill for spec, planning, or branch-and-PR workflow or for base app-code architecture rules."
 ---
 
 # Azure Spa Clean Architecture Bootstrap
@@ -12,6 +12,8 @@ This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, an
 This skill does not own `/doc/spec`, `/doc/plan.md`, commit-log workflow, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
+Keeping the same database engine across environments is usually safer. When this skill adopts SQLite for developer speed, treat it as local-development-only storage and require Azure SQL Database for every Azure-hosted environment that persists relational data.
+Surface Azure prerequisites early. If the project will definitely require specific RBAC assignments, tenant or subscription access, SQL admin setup, App Configuration or Key Vault access, or an unavoidable Service Principal for deploy or migration paths, request those at the beginning of development instead of discovering them mid-implementation.
 When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.
 
 ## Companion Skill Requirement
@@ -26,11 +28,17 @@ When the app requires user authentication, prefer a real local sign-in path with
 1. Choose the runtime mode first:
    - Keep pure SPA mode only when the app has no server-only secrets, no social login callback, no Prisma-backed mutations, and no protected server endpoints.
    - Use React Router framework runtime when the app needs auth callbacks, cookies, Prisma, Azure SQL, or server-owned secrets.
-2. Confirm the companion skill is installed:
+   - If the app persists relational data, use SQLite for local development and Azure SQL Database for every Azure-hosted environment.
+2. Surface prerequisites before deep implementation:
+   - list the Azure tenant, subscription, resource group scope, and RBAC assignments that are definitely required
+   - identify any required SQL admin or migration identity setup
+   - identify whether GitHub Actions OIDC setup or another unavoidable Service Principal is required
+   - request these prerequisites at project start instead of waiting for release hardening
+3. Confirm the companion skill is installed:
    - required skill: `enforce-react-spa-architecture`
    - published URL: `https://github.com/anaregdesign/skills/tree/main/skills/development/enforce-react-spa-architecture`
    - if missing, install it with `$skill-installer` before reading the sibling references
-3. Read the base architecture references from the sibling skill:
+4. Read the base architecture references from the sibling skill:
    - full architecture overview index for multi-boundary changes: [`../enforce-react-spa-architecture/references/layout-and-dependency-rules.md`](../enforce-react-spa-architecture/references/layout-and-dependency-rules.md)
    - project bootstrap: [`../enforce-react-spa-architecture/references/project-bootstrap.md`](../enforce-react-spa-architecture/references/project-bootstrap.md)
    - layout and module placement: [`../enforce-react-spa-architecture/references/layout-and-module-placement.md`](../enforce-react-spa-architecture/references/layout-and-module-placement.md)
@@ -48,7 +56,7 @@ When the app requires user authentication, prefer a real local sign-in path with
    - stateful flow compromise rules: [`../enforce-react-spa-architecture/references/stateful-flow-compromises.md`](../enforce-react-spa-architecture/references/stateful-flow-compromises.md)
    - hotspot refactor workflow: [`../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md`](../enforce-react-spa-architecture/references/hotspot-refactor-workflow.md)
    - verification gates: [`../enforce-react-spa-architecture/references/verification-gates.md`](../enforce-react-spa-architecture/references/verification-gates.md)
-4. Read the Azure and GitHub references in this skill:
+5. Read the Azure and GitHub references in this skill:
    - Azure platform bootstrap: [`references/azure-platform-bootstrap.md`](references/azure-platform-bootstrap.md)
    - Azure identity overview index: [`references/azure-identity-and-sql.md`](references/azure-identity-and-sql.md)
    - user auth, runtime contract, and local sign-in path: [`references/entra-user-auth-and-runtime-contracts.md`](references/entra-user-auth-and-runtime-contracts.md)
@@ -59,7 +67,7 @@ When the app requires user authentication, prefer a real local sign-in path with
    - GitHub release delivery: [`references/github-release-delivery.md`](references/github-release-delivery.md)
    - template adoption guide: [`references/template-assets.md`](references/template-assets.md)
    - operational checklist: [`references/operational-checklist.md`](references/operational-checklist.md)
-5. Classify the change:
+6. Classify the change:
    - route or UI composition
    - Microsoft Entra ID auth or app registration when authentication is required
    - auth or session boundary
@@ -101,12 +109,16 @@ When the app requires user authentication, prefer a real local sign-in path with
 - Treat "SPA" as a UX target, not as a requirement to remove the server runtime.
 - Prefer React Router framework runtime over bolting ad hoc APIs onto a static bundle when auth, persistence, or secret-backed integrations need a server.
 - Prefer Azure Container Apps for apps that need a server runtime. Use Static Web Apps only for truly static frontends.
-- Prefer Azure SQL Database serverless for relational persistence when the app needs shared relational data. Treat SQLite as local-dev or prototype storage only.
+- Use SQLite only for local development.
+- When the app is hosted on Azure and persists relational data, use Azure SQL Database rather than SQLite.
+- Prefer Azure SQL Database serverless for Azure-hosted relational persistence unless workload characteristics force another SKU.
+- Front-load known Azure prerequisites. Ask for required tenant access, subscription access, RBAC assignments, SQL admin setup, and any unavoidable Service Principal before substantial implementation begins.
 - When authentication is required, prefer `Microsoft Entra ID` over portal-only or ad hoc "Microsoft auth" descriptions, and keep the chosen `signInAudience` explicit.
 - Do not use `.env` or `.env.example` for Azure runtime configuration. Use Azure App Configuration for non-secret settings and Key Vault for secrets.
 - Use local `DefaultAzureCredential` during development after `az login` or `azd auth login`.
 - Use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication. Do not rely on a broad `DefaultAzureCredential` chain in production.
 - Use `DefaultAzureCredential` or Managed Identity only where runtime SDK support is real. Do not assume Prisma CLI or schema migration flows inherit that auth automatically.
+- Treat SQLite-to-Azure-SQL provider differences as real delivery risk. Validate migrations, query behavior, and generated SQL against Azure SQL Database before release.
 - Separate runtime identity from migration or admin identity.
 - When the app requires user authentication, prefer a separate dev or test app registration from the production registration, and use a separate test tenant when production-tenant policies or risk make safe testing hard.
 - Keep localhost redirect URIs in the dev or test registration, or document clearly why they still exist in another registration. Remove unnecessary development redirect URIs from the production registration.
@@ -114,6 +126,7 @@ When the app requires user authentication, prefer a real local sign-in path with
 - Do not treat a hidden local auth bypass as the standard development path for an app that requires authentication.
 - Prefer scripted `az` or `az rest` app registration changes over portal-only click paths so redirect URIs, audience, and secret mode stay reproducible.
 - Use GitHub Actions OIDC to Azure. Do not store Azure client secrets in GitHub.
+- Prefer Managed Identity and OIDC over Service Principals, but if a Service Principal is definitely required for deploy, migration, or external automation, identify and request it during bootstrap rather than during release stabilization.
 - Keep repository governance explicit: protected default branch, required checks, and production Environment scoping.
 - Deploy immutable release-tag images, not mutable `latest`.
 - Keep production values in GitHub Environments and Azure-managed secret stores rather than in repo files.
@@ -133,6 +146,8 @@ When the app requires user authentication, prefer a real local sign-in path with
 - Confirm `enforce-react-spa-architecture` is installed from the published GitHub path before relying on sibling references.
 - Follow the sibling architecture references before adding cloud features.
 - Keep this skill focused on platform deltas after the companion skill has established code structure, UI rules, and verification gates.
+- Surface the Azure prerequisites now: required RBAC, tenant or subscription access, SQL admin setup, App Configuration or Key Vault access, and any unavoidable Service Principal or federated deploy identity.
+- Ask for these prerequisites before the team gets deep into implementation so platform access does not become a late blocker.
 
 ### 2. Add cloud-facing repository structure intentionally
 
@@ -161,15 +176,17 @@ When the app requires user authentication, prefer a real local sign-in path with
 ### 4. Add persistence and identity intentionally
 
 - Keep repository ports in the companion skill's domain layer, and place Azure SQL or SQL Server adapters in `app/lib/server/infrastructure/repositories/`.
+- Use SQLite for local development only, and keep Azure-hosted environments on Azure SQL Database. Do not plan to run a SQLite file inside Azure-hosted runtime environments.
 - Use local `DefaultAzureCredential` in development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication when the driver path supports it.
 - Keep migrations explicit and separate from app startup.
+- Treat the SQLite local-development path and Azure SQL Database hosted path as different providers that need explicit validation.
 - Keep `db_datareader` and `db_datawriter` on runtime identities. Reserve elevated roles for migration or admin identities.
 
 ### 5. Prepare Azure deployment
 
 - Add a container-friendly `Dockerfile`.
 - Add `azure.yaml` and declarative infrastructure.
-- Prefer Container Apps, Managed Identity, Azure App Configuration, Key Vault, Application Insights, and, when relational persistence is required, Azure SQL serverless as the default platform set.
+- Prefer Container Apps, Managed Identity, Azure App Configuration, Key Vault, Application Insights, and, when relational persistence is required, Azure SQL Database serverless as the default platform set.
 - Add `/health` and keep probes cheap.
 - Keep resource naming, region choice, and scope boundaries deliberate.
 
@@ -187,7 +204,8 @@ When the app requires user authentication, prefer a real local sign-in path with
 - Review boundary drift and forbidden imports.
 - Validate workflow syntax and IaC before release.
 - When the app requires user authentication, verify the documented local sign-in path with the intended dev or test users before release.
-- Smoke-test the deployed revision and confirm callback URLs, health checks, and DB connectivity.
+- If local development uses SQLite, verify the deployed environment has switched to Azure SQL Database before release.
+- Smoke-test the deployed revision and confirm callback URLs, health checks, Azure SQL Database connectivity, and migration state.
 
 ### 8. Operate and hand off cleanly
 

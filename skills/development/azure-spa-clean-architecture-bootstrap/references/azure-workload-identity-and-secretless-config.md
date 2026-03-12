@@ -9,6 +9,13 @@ Use this reference when the app needs Azure workload identity, Azure App Configu
 - Use a Container App Managed Identity for deployed runtime access to Azure resources and Azure SQL.
 - Use a separate migration or admin identity for schema changes and elevated SQL work.
 
+## Request Required Access Early
+
+- Identify at project start which developer roles are definitely required for local bootstrap, such as App Configuration Data Reader or Key Vault Secrets User.
+- Identify at project start whether the deployment path needs a GitHub OIDC-backed Azure application and Service Principal.
+- Identify at project start whether schema management needs a separate migration identity with elevated SQL permissions.
+- Prefer not to create extra Service Principals, but if one is unavoidable, ask for it early instead of discovering the need during release work.
+
 ## Prefer Secretless Config Over `.env`
 
 - Do not add `.env` or `.env.example` for Azure-hosted apps.
