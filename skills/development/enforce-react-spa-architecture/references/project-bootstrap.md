@@ -27,6 +27,8 @@ Reason:
 - it keeps React Router configuration aligned with current framework mode
 - it reduces manual setup drift before architecture work even starts
 
+In practice, it is usually cleaner to install the baseline routing, Prisma, and UI dependencies the project already knows it will need before feature implementation starts, rather than adding them piecemeal in the middle of the first feature.
+
 ## Recommended Flow
 
 ### 1. Scaffold the app

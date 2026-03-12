@@ -120,6 +120,7 @@ If a companion hosting skill explicitly overrides runtime mode or config bootstr
 - Prefer `create-react-router` for this skill's architecture because it already aligns with Vite, route modules, and SPA mode.
 - Add Prisma v7, the correct driver adapter, `@react-router/fs-routes`, and SPA configuration before layering domain or use-case code.
 - Add Fluent UI React v9 early for new UI work so components, theming, and accessibility patterns stay consistent from the first screen.
+- Before substantial feature work begins, prefer installing the baseline dependencies the project already knows it will need so architecture work does not drift around missing packages mid-implementation.
 - When hosting, identity, or deployment requirements appear, keep this skill on code-level architecture and hand the platform-specific decisions to the companion hosting skill.
 
 ### 1. Model the change around a use case
