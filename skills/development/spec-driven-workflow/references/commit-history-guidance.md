@@ -28,7 +28,7 @@ Keep commit history easy to review, easy to understand, and easy to revert while
 
 ## Relationship To The Plan
 
-- Let the current `Short-Term` slice suggest the next commit boundary.
+- Let the current lowest-level execution block suggest the next commit boundary.
 - If one plan checkbox expands into several meaningful review units, use multiple commits and keep the plan wording broad enough to allow that.
 - If several tiny edits only make sense together, keep them in one commit even when they belong to the same plan checkbox.
 - Do not use commit history as a replacement for `/doc/plan.md`; the plan tracks current execution, while commits record completed review units.

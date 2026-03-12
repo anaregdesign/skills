@@ -6,7 +6,7 @@ Use this reference when executing the active plan for a development request.
 
 - Create `/doc/plan.md` after the spec is clear enough to guide implementation.
 - Keep the spec link near the top of the plan.
-- Use only the planning horizons the work actually needs.
+- Use only the hierarchy levels the work actually needs.
 - Treat `/doc/plan.md` as temporary execution state, not as durable documentation.
 
 Example shape:
@@ -17,15 +17,17 @@ Example shape:
 ## Links
 - Spec: /doc/spec/feature-name.md
 
-## Short-Term
+## Section 1 - First delivery slice
+### Subsection 1.1 - Implementation
 - [ ] Implement the first reviewed slice
+#### Sub-subsection 1.1.1 - Verification
 - [ ] Run verification
 ```
 
 ## 2. Keep the Plan Current During Execution
 
 - Check off plan tasks as they finish.
-- Update `/doc/plan.md` when work moves between `Long-Term`, `Mid-Term`, and `Short-Term`.
+- Update `/doc/plan.md` when work is reordered, split, or moved between `Section`, `Subsection`, and `Sub-subsection` blocks.
 - Revise `/doc/plan.md` when technical findings change dependencies, sequencing, or slice boundaries.
 - Record progress in coherent commit units that match the current execution slice.
 - Update the spec when accepted user-visible behavior changes.
