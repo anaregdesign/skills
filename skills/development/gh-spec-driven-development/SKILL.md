@@ -18,8 +18,8 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 4. For a new development request:
    - create or update the user-facing spec under `/doc/spec/`
    - create or update the GitHub Issue with a task-list checklist
-   - create a semantic working branch linked to that Issue
-   - open a draft PR early once the branch has the initial meaningful commit
+   - create a semantic working branch linked to that Issue, or continue on the existing active branch for that Issue
+   - open a draft PR early once the branch has the initial meaningful commit, or update the existing draft PR if one already tracks the work
 5. During implementation:
    - keep the Issue checklist current
    - keep the PR description linked to the spec and Issue
@@ -35,13 +35,15 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 - Document the user-visible requirement under `/doc/spec/` before substantial implementation begins.
 - Write the spec from the user's point of view first: goals, scope, behavior, acceptance criteria, edge cases, and non-goals. Keep implementation details secondary.
 - Create or update one GitHub Issue per coherent development request unless the repository already has an explicit different tracking model.
+- If the same delivery unit already has an open Issue, active branch, or draft PR, update those artifacts instead of creating duplicates.
 - Break work into the smallest meaningful reviewable steps and record them as GitHub Issue task-list checkboxes.
 - Update checkboxes as work completes. Do not leave finished steps unchecked.
 - Use semantic branch prefixes aligned with the work type, preferably `feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, or `test/`.
 - Open a draft PR early so the work has a review surface before the final merge.
+- Keep commit history reviewable and follow the repository's commit convention. Prefer Conventional Commits where the repository uses them.
 - Keep the spec, Issue, branch, PR, and final merged state aligned. Do not let one artifact tell a different story from the others.
 - Merge only after the checklist is complete, the PR reflects the final change, and required verification has passed.
-- After merge, close or confirm closure of the Issue and delete the working branch.
+- After merge, close or confirm closure of the Issue and delete the working branch when repository policy allows.
 - If the repository has stronger branch protection, PR review, merge strategy, or naming rules, follow those rules while preserving this workflow's intent.
 
 ## Workflow
@@ -56,20 +58,23 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 ### 2. Open or update the GitHub Issue
 
 - Use the Issue as the execution hub for the change.
+- If an open Issue already tracks the same coherent request, update it instead of creating a duplicate.
 - Include the spec link near the top.
 - Include a task-list checklist that reflects the shortest meaningful implementation slices.
 - Keep the checklist about delivery steps, not vague aspirations.
 
-### 3. Create the working branch
+### 3. Create or continue on the working branch
 
 - Branch from the repository's normal base branch unless the repo requires another starting point.
 - Prefer a branch name aligned with the intended Conventional Commit type, such as `feat/<issue-number>-<slug>` or `fix/<issue-number>-<slug>` when the Issue number is known.
+- If the Issue already has an active working branch for the same delivery unit, continue on it unless the work has intentionally been split.
 - Keep one branch focused on one coherent Issue whenever practical.
 
-### 4. Open the PR early
+### 4. Open or update the PR early
 
 - Push the branch once the initial meaningful commit exists, typically the spec and workflow setup or the first reviewed slice.
 - Open a draft PR early rather than waiting for the entire feature to be complete.
+- If a draft PR already exists for the branch, update it instead of opening a duplicate PR.
 - Link the PR to the Issue and spec.
 - Use an automatic closing keyword only when the PR truly resolves the Issue.
 
@@ -78,6 +83,7 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 - Complete work one meaningful slice at a time.
 - Check off the matching Issue checkbox as each slice is finished.
 - Update the PR description and spec if scope or accepted behavior changes.
+- Keep commit messages aligned with the repository convention. Prefer Conventional Commits when the repository uses them.
 - Keep commits reviewable and aligned with the checklist.
 
 ### 6. Finish cleanly
@@ -86,7 +92,7 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 - Confirm the PR summary matches the delivered behavior.
 - Merge the PR with the repository's preferred strategy.
 - Confirm the Issue closes.
-- Delete the remote branch and clean up the local branch.
+- Delete the remote branch when repository policy allows, and clean up the local branch.
 
 ## References
 

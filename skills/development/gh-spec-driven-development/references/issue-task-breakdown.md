@@ -21,7 +21,7 @@ Break the work into the shortest meaningful steps that can be reviewed, reasoned
 - `[ ] Implement the server or domain behavior`
 - `[ ] Implement the UI flow or visible states`
 - `[ ] Add tests and run verification`
-- `[ ] Update PR summary and merge`
+- `[ ] Update the PR summary and mark the work ready for merge`
 
 ## Bad Examples
 
@@ -35,7 +35,7 @@ Break the work into the shortest meaningful steps that can be reviewed, reasoned
 
 - Keep the checklist in delivery order.
 - Start with the spec if the request is new or underdefined.
-- Keep the final checklist item tied to verification or merge readiness.
+- Keep the final checklist item tied to verification or merge readiness, not the merge action itself.
 - If the work grows, edit the Issue and split the checkbox list rather than hiding extra work in commits.
 - If one checkbox stops being meaningful, replace it with smaller meaningful steps.
 
