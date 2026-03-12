@@ -26,6 +26,7 @@ Example shape:
 
 - Check off plan tasks as they finish.
 - Update `/doc/plan.md` when work moves between `Long-Term`, `Mid-Term`, and `Short-Term`.
+- Revise `/doc/plan.md` when technical findings change dependencies, sequencing, or slice boundaries.
 - Record progress in coherent commit units that match the current execution slice.
 - Update the spec when accepted user-visible behavior changes.
 - Keep the plan small enough to stay legible.

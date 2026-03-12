@@ -72,6 +72,8 @@ Use only the horizons the work actually needs.
 - Add `Long-Term` only when the current work intentionally spans larger phases.
 - Move work downward as it becomes actionable rather than duplicating the same task in every horizon.
 - Rewrite the plan when the execution path changes instead of appending stale history.
+- If technical investigation reveals a better execution path, revise the plan to match the current best approach instead of preserving the original guess.
+- Update the spec only when accepted user-visible behavior changes; technical replanning by itself belongs in `/doc/plan.md`.
 
 ## Completion Rule
 
