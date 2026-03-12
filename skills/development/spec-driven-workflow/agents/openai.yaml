@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spec Driven Workflow"
+  short_description: "Own /doc/spec, /doc/plan.md, and branch-PR lifecycle"
+  default_prompt: "Use $spec-driven-workflow when the work needs /doc/spec documentation, a temporary /doc/plan.md with Long-Term, Mid-Term, and Short-Term checkboxes as needed, semantic branches, early PRs, and cleanup after the plan is complete. Do not use it to decide app-code architecture or cloud platform topology."

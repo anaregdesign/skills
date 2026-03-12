@@ -1,6 +1,6 @@
 ---
 name: azure-spa-clean-architecture-bootstrap
-description: "Own Azure platform, identity, secretless config, IaC, and GitHub release and deployment automation for React Router + Prisma v7 web apps that already follow enforce-react-spa-architecture. Use when the work is primarily Azure runtime-mode selection, Microsoft Entra ID integration or Azure CLI app registration when end-user authentication is required, Azure Container Apps, Azure SQL, Azure App Configuration, Key Vault, Managed Identity, local DefaultAzureCredential setup, GitHub Actions OIDC, GHCR image release, or production deployment verification. Do not use this skill for generic GitHub Issue or PR workflow or for base app-code architecture rules."
+description: "Own Azure platform, identity, secretless config, IaC, and GitHub release and deployment automation for React Router + Prisma v7 web apps that already follow enforce-react-spa-architecture. Use when the work is primarily Azure runtime-mode selection, Microsoft Entra ID integration or Azure CLI app registration when end-user authentication is required, Azure Container Apps, Azure SQL, Azure App Configuration, Key Vault, Managed Identity, local DefaultAzureCredential setup, GitHub Actions OIDC, GHCR image release, or production deployment verification. Do not use this skill for spec, planning, or branch-and-PR workflow or for base app-code architecture rules."
 ---
 
 # Azure Spa Clean Architecture Bootstrap
@@ -9,7 +9,7 @@ description: "Own Azure platform, identity, secretless config, IaC, and GitHub r
 
 Use this skill to layer Azure hosting, identity, and GitHub delivery decisions onto the base React Router clean architecture owned by `enforce-react-spa-architecture`. Preserve SPA-style navigation, but switch to a server runtime whenever OAuth callbacks, Prisma, server-only secrets, or Azure SQL access make a static-only SPA the wrong abstraction.
 This skill owns Azure platform, `Microsoft Entra ID`, secretless config, IaC, and release workflow guidance. Keep code structure, UI guardrails, commit hygiene, and general verification rules in the companion skill, and repeat them here only when they are critical to protect Azure-specific boundaries.
-This skill does not own `/doc/spec`, GitHub Issue lifecycle, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
+This skill does not own `/doc/spec`, `/doc/plan.md`, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on platform deltas.
 Treat requests for "Microsoft auth" as `Microsoft Entra ID` only when the app actually needs user authentication. If the app does not need auth, skip the app registration and auth guidance.
 Prefer a secretless configuration model: do not introduce `.env` or `.env.example` for Azure-hosted apps. Put non-secret runtime configuration in Azure App Configuration, put secrets in Key Vault, use local `DefaultAzureCredential` during development, and use `ManagedIdentityCredential` for deployed app-to-Azure and Azure SQL authentication.
 When the app requires user authentication, prefer a real local sign-in path with a dev or test `Microsoft Entra ID` registration and test identities rather than a hidden development auth bypass.

@@ -48,7 +48,7 @@ If no relevant spec exists yet, start by creating the first spec document before
 - What is explicitly out of scope
 - What counts as done from the user's perspective
 - What edge cases or error paths still matter to the user
-- Which GitHub Issue and PR implement the work
+- Which plan file and PR currently implement the work, when those artifacts exist
 
 ## Starting From Nothing
 
@@ -60,6 +60,7 @@ If no relevant spec exists yet, start by creating the first spec document before
 
 - Do not start with folder layout, classes, Hook names, or schema details.
 - Do not let implementation notes replace acceptance criteria.
+- Do not let `/doc/plan.md` replace the user-facing requirement document.
 - Do not leave the spec as a vague problem statement without concrete behavior.
 - Do not keep stale behavior in the spec after the implementation direction changes.
 

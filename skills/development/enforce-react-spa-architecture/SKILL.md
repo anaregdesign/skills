@@ -1,6 +1,6 @@
 ---
 name: enforce-react-spa-architecture
-description: "Own code-level clean-architecture guardrails for Vite-powered React Router + Prisma v7 applications. Use when bootstrapping or changing the app codebase itself: installing baseline app dependencies, placing modules, implementing or refactoring routes, loaders and actions, client use cases, domain models, Prisma-backed server code, Fluent UI React v9 screens, responsive UI, chart rendering, commit hygiene, and pre-push verification. Do not use this skill to drive `/doc/spec`, GitHub Issue or PR workflow, or Azure platform, identity, IaC, and release-infrastructure decisions."
+description: "Own code-level clean-architecture guardrails for Vite-powered React Router + Prisma v7 applications. Use when bootstrapping or changing the app codebase itself: installing baseline app dependencies, placing modules, implementing or refactoring routes, loaders and actions, client use cases, domain models, Prisma-backed server code, Fluent UI React v9 screens, responsive UI, chart rendering, commit hygiene, and pre-push verification. Do not use this skill to drive `/doc/spec`, `/doc/plan.md`, branch-and-PR workflow, or Azure platform, identity, IaC, and release-infrastructure decisions."
 ---
 
 # Enforce React Spa Architecture
@@ -9,7 +9,7 @@ description: "Own code-level clean-architecture guardrails for Vite-powered Reac
 
 Use this skill as the default architecture workflow for a React Router SPA that uses Vite and Prisma v7. Use it from initial bootstrap through ongoing implementation. Keep FlatRoute modules declarative, view files thin, data access server-only, and dependency direction explicit before writing code.
 This skill owns code structure, dependency direction, UI guardrails, commit hygiene, and verification for the app codebase. Do not use it to define cloud provider choice, identity provisioning, secret-store topology, IaC layout, or deployment infrastructure; let a companion hosting skill add those concerns while preserving these rules.
-This skill also does not own `/doc/spec`, GitHub Issue lifecycle, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on app code.
+This skill also does not own `/doc/spec`, `/doc/plan.md`, branch naming workflow, or PR management; use a repository workflow skill for those concerns and keep this skill focused on app code.
 For new or unstandardized UI work, prefer Fluent UI React v9 and a quiet, simple visual presentation. Keep primary labels and layouts concise, and move only supplemental, non-essential detail into Tooltip or InfoLabel patterns.
 When data visualization is required, prefer the simplest accessible chart that matches the analytical task and keep chart interaction lightweight.
 For responsive behavior, prefer guidance that keeps the same feature usable on both desktop and mobile rather than treating `mobile-first` as a universal process requirement.

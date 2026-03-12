@@ -1,4 +1,0 @@
-interface:
-  display_name: "GitHub Spec Workflow"
-  short_description: "Own /doc/spec and GitHub issue-branch-PR lifecycle"
-  default_prompt: "Use $gh-spec-driven-development when the work needs /doc/spec documentation plus GitHub issue, branch, PR, checklist, merge, and cleanup workflow. Do not use it to decide app-code architecture or Azure platform topology."

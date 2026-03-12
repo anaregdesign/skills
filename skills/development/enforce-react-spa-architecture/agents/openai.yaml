@@ -1,4 +1,4 @@
 interface:
   display_name: "React SPA Architecture"
   short_description: "Own app-code architecture, UI guardrails, and verification in React Router + Prisma work"
-  default_prompt: "Use $enforce-react-spa-architecture to bootstrap or change the app code in this React Router and Prisma v7 project with strict layer boundaries, Fluent UI React v9 for new UI work, responsive UI, commit hygiene, and pre-push verification. Do not use it for GitHub issue or PR workflow or Azure platform decisions."
+  default_prompt: "Use $enforce-react-spa-architecture to bootstrap or change the app code in this React Router and Prisma v7 project with strict layer boundaries, Fluent UI React v9 for new UI work, responsive UI, commit hygiene, and pre-push verification. Do not use it for spec, planning, or branch-and-PR workflow or for Azure platform decisions."
