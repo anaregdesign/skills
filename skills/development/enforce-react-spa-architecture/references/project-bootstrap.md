@@ -29,6 +29,27 @@ Reason:
 
 In practice, it is usually cleaner to install the baseline routing, Prisma, and UI dependencies the project already knows it will need before feature implementation starts, rather than adding them piecemeal in the middle of the first feature.
 
+## Baseline Dependencies To Have Ready
+
+For the default stack in this skill, the baseline dependency set to line up early is:
+
+- Route-file support: `@react-router/fs-routes`
+- ORM runtime: `@prisma/client@7`
+- Default PostgreSQL adapter and driver: `@prisma/adapter-pg`, `pg`
+- ORM tooling: `prisma@7`, `tsx`
+- PostgreSQL TypeScript types for the default adapter path: `@types/pg`
+- Default UI layer when no existing design system overrides it: `@fluentui/react-components`, `@fluentui/react-icons`
+
+In practice, that usually means these commands soon after scaffold:
+
+```bash
+npm install @react-router/fs-routes @prisma/client@7 @prisma/adapter-pg pg @fluentui/react-components @fluentui/react-icons
+npm install -D prisma@7 tsx @types/pg
+```
+
+If the database is not PostgreSQL, replace the adapter and driver packages before continuing.
+If the repository already has an established design system, do not add Fluent UI casually just because it appears in the default list.
+
 ## Recommended Flow
 
 ### 1. Scaffold the app
