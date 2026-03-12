@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Spec Workflow"
+  short_description: "Document specs and run GitHub delivery flow"
+  default_prompt: "Use $gh-spec-driven-development to document user-visible requirements in /doc/spec and run the GitHub issue, branch, PR, merge, and cleanup workflow for this feature."

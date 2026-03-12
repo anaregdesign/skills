@@ -6,12 +6,19 @@ Each skill in this directory conforms to the [agentskills.io](https://agentskill
 
 ## Overview
 
-This directory currently contains two companion skills for the same family of projects:
+This directory currently contains:
+
+- a companion pair for React Router + Prisma SPA architecture and Azure delivery
+- one independent GitHub workflow skill
+
+The companion pair is:
 
 - `enforce-react-spa-architecture`: the base architecture skill
 - `azure-spa-clean-architecture-bootstrap`: the Azure extension skill
 
-Use them together when the target app is a React Router + Prisma v7 SPA-style web app that must keep clean architecture intact and also ship on Azure.
+The independent skill is:
+
+- `gh-spec-driven-development`: the GitHub workflow and spec-first delivery skill
 
 ## Skill Roles
 
@@ -49,9 +56,27 @@ Use this skill for:
 This skill does not replace:
 - the base architecture rules from `enforce-react-spa-architecture`
 
+### `gh-spec-driven-development`
+
+Role:
+- Documents spec-first GitHub development flow for feature work.
+
+Use this skill for:
+- writing complete user-visible requirements under `/doc/spec/`
+- creating or updating GitHub Issues for development work
+- creating semantic branches such as `feat/`, `fix/`, `docs/`, or `refactor/`
+- opening draft PRs early
+- breaking work into the shortest meaningful Issue checkbox steps
+- checking off work as it completes
+- merging PRs, closing Issues, and deleting branches cleanly
+
+This skill is independent:
+- use it on its own for GitHub-backed product delivery workflow
+- do not treat it as an extension of the SPA or Azure skills
+
 ## Dependency Direction
 
-The dependency direction is one-way:
+The SPA companion pair has a one-way dependency direction:
 
 ```text
 azure-spa-clean-architecture-bootstrap
@@ -69,11 +94,13 @@ Interpretation:
 
 - Use only `enforce-react-spa-architecture` when you need code architecture and implementation guardrails for a React Router + Prisma v7 app without Azure-specific delivery concerns.
 - Use both skills together when the same app must also ship on Azure or needs Azure-specific identity, SQL, config, IaC, or release workflow guidance.
+- Use `gh-spec-driven-development` when you want spec-first GitHub execution with `/doc/spec/`, Issue checklists, semantic branches, early PRs, and merge cleanup.
 - Do not install `azure-spa-clean-architecture-bootstrap` by itself.
 
 ## Install Together
 
 `azure-spa-clean-architecture-bootstrap` extends `enforce-react-spa-architecture`, so install both skills together.
+Install `gh-spec-driven-development` separately when the repository also needs the spec-first GitHub workflow.
 
 ### Codex
 
