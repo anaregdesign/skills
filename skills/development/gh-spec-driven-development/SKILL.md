@@ -16,7 +16,8 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 2. Read [`references/issue-task-breakdown.md`](references/issue-task-breakdown.md) before drafting the Issue checklist.
 3. Read [`references/github-ops-workflow.md`](references/github-ops-workflow.md) before creating the Issue, branch, and PR.
 4. For a new development request:
-   - create or update the user-facing spec under `/doc/spec/`
+   - if `/doc/spec/` is empty or the relevant spec does not exist yet, start by creating the initial user-facing spec under `/doc/spec/`
+   - otherwise update the existing relevant spec under `/doc/spec/`
    - create or update the GitHub Issue with a task-list checklist
    - create a semantic working branch linked to that Issue, or continue on the existing active branch for that Issue
    - open a draft PR early once the branch has the initial meaningful commit, or update the existing draft PR if one already tracks the work
@@ -33,6 +34,7 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 ## Non-Negotiable Rules
 
 - Document the user-visible requirement under `/doc/spec/` before substantial implementation begins.
+- If `/doc/spec/` has no relevant document for the request yet, create the initial spec before creating the main implementation.
 - Write the spec from the user's point of view first: goals, scope, behavior, acceptance criteria, edge cases, and non-goals. Keep implementation details secondary.
 - Create or update one GitHub Issue per coherent development request unless the repository already has an explicit different tracking model.
 - If the same delivery unit already has an open Issue, active branch, or draft PR, update those artifacts instead of creating duplicates.
@@ -51,6 +53,7 @@ Keep the requirements document focused on what the user sees, needs, and accepts
 ### 1. Capture the request in `/doc/spec`
 
 - Create `/doc/spec/` if it does not exist.
+- If `/doc/spec/` exists but does not yet contain a relevant document for the request, start by creating the initial spec file.
 - Use a clear filename that ties back to the work item, typically with an Issue number or stable slug.
 - Capture the request as a user-facing requirement document before writing the main implementation.
 - Link the spec to the Issue and PR once those artifacts exist.

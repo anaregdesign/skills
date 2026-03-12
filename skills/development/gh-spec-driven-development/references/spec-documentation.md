@@ -5,6 +5,7 @@ Use this reference when writing or updating `/doc/spec/` for a development reque
 ## Goal
 
 Document the complete user-visible requirement from the user's point of view before substantial implementation starts.
+If no relevant spec exists yet, start by creating the first spec document before moving on to the main implementation workflow.
 
 ## Required Characteristics
 
@@ -48,6 +49,12 @@ Document the complete user-visible requirement from the user's point of view bef
 - What counts as done from the user's perspective
 - What edge cases or error paths still matter to the user
 - Which GitHub Issue and PR implement the work
+
+## Starting From Nothing
+
+- If `/doc/spec/` does not exist, create it first.
+- If `/doc/spec/` exists but the requested work has no matching document yet, create a new initial spec file before drafting the main implementation.
+- The initial spec does not need to predict every implementation detail, but it should already cover user goals, visible behavior, acceptance criteria, and non-goals.
 
 ## What To Avoid
 
